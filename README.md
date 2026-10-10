@@ -1,52 +1,168 @@
-# Sip Laban - Sales & Operations Management PWA 🥛
+# ZipLaban PWA Application
+ 
 
-A pixel-perfect Flutter Progressive Web App (PWA) replicating the modern restaurant point-of-sale overview dashboard.
 
-## 📱 Features
+## 🧰 Git User Manual
 
-- **Exact Visual Match**:
-  - **Top App Bar**: Outlet branch selector (`Sip Laban Varang...`), sign out / shift handover button, POS screen shortcut, and digital menu link copy button.
-  - **Daily Snapshot Card**: Featuring the smooth Bézier curve chart with accent blue wave, glow marker peak, date subtitle, and interactive `"Ready To View"` button opening detailed breakdown.
-  - **Sales Overview Section**: Live date filter pill (`1 Oct`), animated sync/refresh button updating live timestamps (`Just now`).
-  - **Total Sales Card**: Lilac icon badge, bold amount (`₹ 2,420`), and dual sync indicator (`POS synced 2 Mins ago & Orders synced 1 Hour ago`).
-  - **Dine In Card**: Soft cyan icon badge, prominent amount (`₹ 1,370`), `"View More >"` modal trigger, order count (`3 Orders`), Turn Around Time (`0 Min TAT`), and 3-dots action menu.
-  - **Pick Up Card**: Soft mint green icon badge, prominent amount (`₹ 1,050`), `"View More >"` modal trigger, order count (`3 Orders`), Average Order Value (`₹ 350 AOV`), and 3-dots action menu.
-  - **Bottom Navigation Bar**: Custom bottom navigation with top active blue line indicator over the active tab, supporting **Sales**, **Operation**, **AI Agent**, and **More**.
-- **Interactive Modals & Full Multi-View Support**:
-  - **Daily Snapshot Sheet**: Hourly sales trajectory bar chart, best-selling beverages ranking, payment breakdown (UPI 71%, Cash 18%, Card 11%), and report sharing.
-  - **Orders Detail Sheet**: Table orders, tokens, preparation time, and reprint KOT shortcuts.
-  - **POS Quick Station Modal**: Sunmi/terminal connection status, Bluetooth ESC/POS printer test.
-  - **Outlet Branch Switcher**: Instant switching between Varangal, Hitec City, and Banjara Hills.
-  - **Live Operations View**: Real-time kitchen queue (KDS), occupied vs. vacant table floor layout, and staff shifts.
-  - **AI Store Agent View**: AI copilot for sales forecasting, inventory stock alerts, and rush-hour preparation.
-  - **More & PWA Installation**: Add to Home Screen trigger, tax & GST configuration, and offline sync cache.
-- **Responsive & PWA Ready**:
-  - Runs in standalone mode when added to mobile home screen.
-  - Features an interactive device shell on desktop screens with viewport switchers (Mobile Frame / Tablet / Full Screen).
+### 🚀 Getting Started
 
-## 🚀 Running Locally
-
+#### 🔄 Default Branch
 ```bash
-# 1. Get dependencies
-flutter pub get
-
-# 2. Run in Chrome / Web
-flutter run -d chrome
-
-# 3. Or build production PWA bundle
-flutter build web --pwa-strategy=offline-first
+    git checkout Development
 ```
 
-## 🛠️ Project Structure
+---
 
-- `lib/main.dart` - Application entry point, responsive shell, and tab controller
-- `lib/theme/` - Color tokens (`app_colors.dart`) and typography (`app_theme.dart`)
-- `lib/models/sales_model.dart` - Outlets, channels, snapshot, and order models
-- `lib/views/sales_view.dart` - Primary Sales Overview screen matching reference design
-- `lib/views/operation_view.dart` - Kitchen Display System (KDS) & table map
-- `lib/views/ai_agent_view.dart` - Restaurant AI Copilot & predictive assistant
-- `lib/views/more_view.dart` - Store settings, hardware printers, and PWA install prompt
-- `lib/widgets/custom_curve_chart.dart` - CustomPainter for the smooth snapshot curve
-- `lib/widgets/custom_bottom_nav_bar.dart` - Bottom bar with top active line indicator
-- `lib/widgets/responsive_frame.dart` - Device mockup frame for desktop & mobile
-- `web/manifest.json` - PWA manifest configuration for standalone install
+## 🧪 Branching Strategy
+
+We follow a structured branching model with the following types:
+
+- [x] **Development** – Default working branch  
+- [x] **feature/** – For adding new features  
+- [x] **bugfix/** – For fixing identified bugs  
+- [x] **release/** – For releasing stable builds  
+
+![Branch Workflow](https://raw.githubusercontent.com/git-guides/git-flow/main/images/git-flow-branches.png)
+
+---
+
+## ✨ Adding a New Feature
+```bash
+    # Step 1: Checkout the default branch
+        git checkout Development
+        git pull
+
+    # Step 2: Create a new feature branch
+        git checkout -b feature/short-feature-name
+
+    # Step 3: Write your code and commit
+        git add -A
+        git commit -m "Added: short description"
+
+    # Step 4: Push and create Merge Request
+        git push origin feature/short-feature-name
+```
+
+➡ Go to **GitLab ➝ Merge Requests ➝ New Merge Request**  
+➡ Choose your source branch (`feature/short-feature-name`) and target branch (`Development`)  
+➡ Fill in the title and description
+
+**Then:**
+- 🧑‍💼 **Select a Reviewer** from the dropdown list (person who will review your code)
+- 🙋 **Assign Yourself** in the **Assignee** dropdown
+
+➡ Click **Submit Merge Request**
+
+➡ Wait for **Maintainer approval and merge**
+
+```bash
+    # Step 5: After merge, update local Development branch
+        git checkout Development
+        git pull
+```
+
+---
+
+## 🐞 Fixing a Bug
+```bash
+    # Step 1: Checkout the default branch
+        git checkout Development
+        git pull
+    
+    # Step 2: Create a new bugfix branch
+        git checkout -b bugfix/short-bug-name
+    
+    # fix the issue...
+
+    # Step 3: Write your code and commit
+        git add -A
+        git commit -m "Fix: short description of bug fix"
+        
+    # Step 4: Push and create Merge Request
+        git push origin bugfix/short-bug-name
+```
+
+➡ Go to **GitLab ➝ Merge Requests ➝ New Merge Request**  
+➡ Choose your source branch (`bugfix/short-bug-name`) and target branch (`Development`)  
+➡ Fill in the title and description
+
+**Then:**
+- 🧑‍💼 **Select a Reviewer** from the dropdown list (person who will review your code)
+- 🙋 **Assign Yourself** in the **Assignee** dropdown
+
+➡ Click **Submit Merge Request**
+
+➡ Wait for **Maintainer approval and merge**
+
+```bash
+    # Step 5: After merge, update local Development branch
+        git checkout Development
+        git pull
+```
+
+---
+
+## 🚢 Creating a Release
+#### Only maintainer have permissions to go with this step
+```bash
+    # Step 1: Checkout the default branch
+        git checkout Development
+        git pull
+    
+    # Step 2: Create a new release branch
+        git checkout -b release/1.0.0
+        
+        # ensure no pending bugs
+        
+    # Step 3: If no bugs in your code then commit
+        git add -A
+        git commit -m "Release: version 1.0.0"
+
+    # Step 4: Push and create Merge Request
+        git push origin release/1.0.0
+```
+
+
+---
+
+## 🔁 Merge Request Flow
+
+| Action | Who |
+|--------|-----|
+| Create MR | Developer |
+| Review + Approve | Maintainer |
+| Merge | Maintainer |
+| Pull latest changes | Developer (post-merge) |
+
+✅ Developers cannot push directly to protected branches (`Development`, `Production`, etc.)  
+✅ Only Maintainers can approve and merge MRs.
+
+---
+
+
+## 📌 Best Practices
+
+- Always pull the latest `Development` before creating new branches
+- Keep commit messages meaningful and concise
+- Use Merge Requests for **all changes**
+- Do **not force push** to protected branches
+
+## ⚠️ Important
+
+**One Branch = One Task**
+
+- Do **not** work on multiple tasks in the same branch.
+- Every feature, bug fix, or improvement must have its **own dedicated branch**.
+- Complete **one task → Create Merge Request → Get it reviewed & merged → Pull the latest `Development` → Create a new branch for the next task**.
+- Keeping each branch focused makes Merge Requests meaningful, simplifies code reviews, testing, and future maintenance.
+
+
+---
+
+
+### 🙌 Final Note
+
+> **"Every line of code you write shapes the future of this project. Let's build with purpose, review with care, and grow together as a team of excellence. Your contribution matters — not just to the repo, but to the mission behind it."**
+
+**Happy coding, and keep making magic with your commits!**  
+— Maintained with care by **The Febno Technologies Team** <img src="https://www.api.febno.com/uploads/logo_1_09eb3f551f.webp" alt="Febno Technologies" width="22" valign="middle">
