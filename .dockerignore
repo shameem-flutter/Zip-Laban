@@ -1,0 +1,36 @@
+# Version Control
+.git/
+.gitignore
+
+# Flutter & Dart Build Cache & Dependencies
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+
+# Local Build Output
+build/
+
+# IDE & Editor Configuration
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Test & Coverage Artifacts
+test/
+coverage/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Logs and environment dumps
+*.log
+
+# Docker Artifacts
+Dockerfile*
+compose*.yaml
+docker-compose*.yml
+.dockerignore

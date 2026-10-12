@@ -1,10 +1,34 @@
 # ZipLaban PWA Application
  
 
+A pixel-perfect Flutter Progressive Web App (PWA) replicating the modern restaurant point-of-sale overview dashboard, connected with Odoo ERP.
 
 ## 🧰 Git User Manual
 
-### 🚀 Getting Started
+- **Exact Visual Match**:
+  - **Top App Bar**: Outlet branch selector (`Sip Laban Varang...`), sign out / shift handover button, POS screen shortcut, and digital menu link copy button.
+  - **Daily Snapshot Card**: Featuring the smooth Bézier curve chart with accent blue wave, glow marker peak, date subtitle, and interactive `"Ready To View"` button opening detailed breakdown.
+  - **Sales Overview Section**: Live date filter pill (`1 Oct`), animated sync/refresh button updating live timestamps (`Just now`).
+  - **Total Sales Card**: Lilac icon badge, bold amount (`₹ 2,420`), and dual sync indicator (`POS synced 2 Mins ago & Orders synced 1 Hour ago`).
+  - **Dine In Card**: Soft cyan icon badge, prominent amount (`₹ 1,370`), `"View More >"` modal trigger, order count (`3 Orders`), Turn Around Time (`0 Min TAT`), and 3-dots action menu.
+  - **Pick Up Card**: Soft mint green icon badge, prominent amount (`₹ 1,050`), `"View More >"` modal trigger, order count (`3 Orders`), Average Order Value (`₹ 350 AOV`), and 3-dots action menu.
+  - **Bottom Navigation Bar**: Custom bottom navigation with top active blue line indicator over the active tab, supporting **Sales**, **Operation**, and **More**.
+- **Interactive Modals & Full Multi-View Support**:
+  - **Daily Snapshot Sheet**: Hourly sales trajectory bar chart, best-selling beverages ranking, payment breakdown (UPI 71%, Cash 18%, Card 11%), and report sharing.
+  - **Orders Detail Sheet**: Table orders, tokens, preparation time, and reprint KOT shortcuts.
+  - **Outlet Branch Switcher**: Instant switching between Varangal, Hitec City, and Banjara Hills.
+  - **Live Operations View**: Real-time kitchen queue (KDS), occupied vs. vacant table floor layout, and staff shifts.
+  - **Menu & Customers Directories**: Full product and customer records synced with Odoo ERP.
+  - **More & PWA Installation**: Add to Home Screen trigger, tax & GST configuration, and offline sync cache.
+- **Responsive & PWA Ready**:
+  - Runs in standalone mode when added to mobile home screen.
+  - Features an interactive device shell on desktop screens with viewport switchers (Mobile Frame / Tablet / Full Screen).
+
+---
+
+## 🚀 Running Locally (Development)
+
+Prerequisites: Flutter SDK `^3.10.4` or later.
 
 #### 🔄 Default Branch
 ```bash
