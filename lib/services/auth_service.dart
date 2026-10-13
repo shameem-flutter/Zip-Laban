@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_endpoints.dart';
 import '../models/sales_model.dart';
 import 'company_service.dart';
@@ -24,6 +25,31 @@ class UserSession {
     required this.branches,
     this.sessionId,
   });
+
+  Map<String, dynamic> toJson() => {
+        'uid': uid,
+        'name': name,
+        'username': username,
+        'db': db,
+        'serverVersion': serverVersion,
+        'sessionId': sessionId,
+        'branches': branches.map((b) => b.toJson()).toList(),
+      };
+
+  factory UserSession.fromJson(Map<String, dynamic> json) => UserSession(
+        uid: json['uid'] is int
+            ? json['uid'] as int
+            : int.tryParse(json['uid']?.toString() ?? '0') ?? 0,
+        name: (json['name'] ?? '').toString(),
+        username: (json['username'] ?? '').toString(),
+        db: (json['db'] ?? '').toString(),
+        serverVersion: (json['serverVersion'] ?? '').toString(),
+        sessionId: json['sessionId']?.toString(),
+        branches: (json['branches'] as List<dynamic>?)
+                ?.map((b) => OutletInfo.fromJson(Map<String, dynamic>.from(b as Map)))
+                .toList() ??
+            [],
+      );
 
   factory UserSession.fromOdooResult(Map<String, dynamic> result, {String? sessionId}) {
     final uid = result['uid'] as int? ?? 0;
@@ -94,14 +120,35 @@ class AuthService extends ChangeNotifier {
   factory AuthService() => _instance;
   AuthService._internal();
 
+  static const String _sessionStorageKey = 'waslasoft_user_session';
   UserSession? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
+  bool _isRestored = false;
 
   UserSession? get currentUser => _currentUser;
   bool get isAuthenticated => currentUser != null;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  bool get isRestored => _isRestored;
+
+  /// Restores persisted user session from local storage upon app startup
+  Future<void> restoreSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final sessionJson = prefs.getString(_sessionStorageKey);
+      if (sessionJson != null && sessionJson.isNotEmpty) {
+        final Map<String, dynamic> decoded = jsonDecode(sessionJson);
+        _currentUser = UserSession.fromJson(decoded);
+      }
+    } catch (e) {
+      debugPrint('Error restoring user session: $e');
+      _currentUser = null;
+    } finally {
+      _isRestored = true;
+      notifyListeners();
+    }
+  }
 
   static const String endpoint = ApiEndpoints.authenticate;
 
@@ -189,6 +236,13 @@ class AuthService extends ChangeNotifier {
           }
 
           _currentUser = UserSession.fromOdooResult(result, sessionId: sessId);
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString(
+                _sessionStorageKey, jsonEncode(_currentUser!.toJson()));
+          } catch (e) {
+            debugPrint('Error saving user session: $e');
+          }
           _isLoading = false;
           notifyListeners();
           return true;
@@ -222,9 +276,15 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  void logout() {
+  Future<void> logout() async {
     _currentUser = null;
     _errorMessage = null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_sessionStorageKey);
+    } catch (e) {
+      debugPrint('Error clearing persisted session: $e');
+    }
     CompanyService().clear();
     SaleOrderService().clear();
     notifyListeners();

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:laban_pwa/constants/api_endpoints.dart';
@@ -11,9 +12,14 @@ import 'package:laban_pwa/services/sale_order_service.dart';
 import 'package:laban_pwa/views/more_view.dart';
 import 'package:laban_pwa/widgets/custom_bottom_nav_bar.dart';
 import 'package:laban_pwa/widgets/daily_snapshot_modal.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:laban_pwa/views/sales_view.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   testWidgets('App smoke test - Login and Dashboard', (WidgetTester tester) async {
     // Set standard mobile device test size
     tester.view.physicalSize = const Size(430, 932);
@@ -418,5 +424,47 @@ void main() {
     expect(find.text('Select Date Filter'), findsNothing);
     expect(saleService.dateFilterPreset, DateFilterPreset.last7Days);
     expect(find.text('Last 7 Days'), findsOneWidget);
+  });
+
+  test('UserSession persistence and restoreSession across app restarts', () async {
+    SharedPreferences.setMockInitialValues({});
+    final auth = AuthService();
+    await auth.logout();
+
+    final testUser = UserSession(
+      uid: 101,
+      name: 'Manager',
+      username: 'manager_pos',
+      db: 'ziplaban',
+      serverVersion: '16.0',
+      sessionId: 'test_session_token_123',
+      branches: const [
+        OutletInfo(
+          id: '2',
+          name: 'KOTTAKKAL BRANCH',
+          shortName: 'KB',
+          location: 'Kottakkal',
+          posTerminalId: 'POS-02',
+        ),
+      ],
+    );
+
+    // Save session to SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('waslasoft_user_session', jsonEncode(testUser.toJson()));
+
+    // Verify restoreSession restores user
+    await auth.restoreSession();
+    expect(auth.isAuthenticated, isTrue);
+    expect(auth.currentUser?.uid, 101);
+    expect(auth.currentUser?.username, 'manager_pos');
+    expect(auth.currentUser?.sessionId, 'test_session_token_123');
+    expect(auth.currentUser?.branches.length, 1);
+    expect(auth.currentUser?.branches.first.name, 'KOTTAKKAL BRANCH');
+
+    // Logout clears the saved session
+    await auth.logout();
+    expect(auth.isAuthenticated, isFalse);
+    expect(prefs.containsKey('waslasoft_user_session'), isFalse);
   });
 }

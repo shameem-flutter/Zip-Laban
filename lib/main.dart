@@ -9,8 +9,9 @@ import 'views/sales_view.dart';
 import 'widgets/custom_bottom_nav_bar.dart';
 import 'widgets/responsive_frame.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AuthService().restoreSession();
   runApp(const SipLabanApp());
 }
 
