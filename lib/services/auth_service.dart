@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_endpoints.dart';
 import '../models/sales_model.dart';
+import 'api_client.dart';
 import 'company_service.dart';
 import 'sale_order_service.dart';
 
@@ -204,7 +204,7 @@ class AuthService extends ChangeNotifier {
         },
       };
 
-      final response = await http
+      final response = await ApiClient.client
           .post(
             Uri.parse(endpoint),
             headers: {

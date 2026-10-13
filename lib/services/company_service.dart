@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_endpoints.dart';
 import '../models/odoo_company.dart';
 import '../models/sales_model.dart';
+import 'api_client.dart';
 import 'auth_service.dart';
 
 /// Service for managing companies & store branches via Odoo JSON-RPC API
@@ -90,7 +90,7 @@ class CompanyService extends ChangeNotifier {
         'params': {},
       };
 
-      final response = await http
+      final response = await ApiClient.client
           .post(
             Uri.parse(endpoint),
             headers: {
