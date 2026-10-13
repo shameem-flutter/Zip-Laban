@@ -155,13 +155,23 @@ class _SalesViewState extends State<SalesView>
     super.dispose();
   }
 
+  static String _formatRelativeTime(DateTime? dt) {
+    if (dt == null) return 'Never';
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inSeconds < 45) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${dt.day}/${dt.month}';
+  }
+
   void _triggerRefresh() async {
     if (isRefreshing) return;
     setState(() => isRefreshing = true);
     _syncAnimController.repeat();
 
     SaleOrderService().markSyncedNow();
-    await SaleOrderService().fetchOrders(forceRefresh: true);
+    final success = await SaleOrderService().fetchOrders(forceRefresh: true);
     await Future.delayed(const Duration(milliseconds: 300));
 
     if (mounted) {
@@ -169,20 +179,37 @@ class _SalesViewState extends State<SalesView>
       _syncAnimController.reset();
       setState(() {
         isRefreshing = false;
-        posSyncedText = 'Just now';
-        ordersSyncedText = 'Just now';
+        if (success) {
+          posSyncedText = 'Just now';
+          ordersSyncedText = 'Just now';
+        }
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Synced live sales data for ${widget.selectedOutlet.name}',
-            style: const TextStyle(fontWeight: FontWeight.w500),
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Synced live sales data for ${widget.selectedOutlet.name}',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            backgroundColor: const Color(0xFF16A34A),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
           ),
-          backgroundColor: AppColors.textPrimary,
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+        );
+      } else {
+        final err = SaleOrderService().errorMessage ?? 'Unable to connect to ERP server';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Sync issue: $err',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            backgroundColor: const Color(0xFFDC2626),
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -378,6 +405,9 @@ class _SalesViewState extends State<SalesView>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        // Sync Status & Session Alert Banner
+                        _buildSyncStatusBanner(context, saleService),
+
                         // 1. Daily Snapshot Card
                         _buildDailySnapshotCard(context),
 
@@ -689,6 +719,167 @@ class _SalesViewState extends State<SalesView>
     );
   }
 
+  Widget _buildSyncStatusBanner(BuildContext context, SaleOrderService saleService) {
+    if (saleService.isSessionExpired) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF2F2),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFFCA5A5), width: 1.2),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.lock_clock_rounded, color: Color(0xFFDC2626), size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'ERP Session Expired',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF991B1B),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Your Odoo ERP session has expired. Please sign out and sign in again to load live sales analytics.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFFB91C1C),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: () => AuthService().logout(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFDC2626),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      minimumSize: Size.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('Sign In Again', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (saleService.errorMessage != null && !saleService.isLoading) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFBEB),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFFDE68A), width: 1.2),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.cloud_off_rounded, color: Color(0xFFD97706), size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Live Sync Notice',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF92400E),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    saleService.errorMessage!,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFFB45309),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: _triggerRefresh,
+                    icon: const Icon(Icons.refresh_rounded, size: 14),
+                    label: const Text('Retry Sync', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFB45309),
+                      side: const BorderSide(color: Color(0xFFF59E0B)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      minimumSize: Size.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (saleService.isUsingCachedData) {
+      final syncTimeStr = _formatRelativeTime(saleService.lastOrdersSyncedAt);
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0FDF4),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFBBF7D0)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.offline_pin_rounded, color: Color(0xFF16A34A), size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Showing cached offline data (synced $syncTimeStr)',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF166534),
+                ),
+              ),
+            ),
+            InkWell(
+              onTap: _triggerRefresh,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                child: Text(
+                  'Sync Now',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F56D9),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
   // 1. Daily Snapshot Card matching screenshot 3
   Widget _buildDailySnapshotCard(BuildContext context) {
     final todayLong = _formatDateLong(DateTime.now());
@@ -958,7 +1149,11 @@ class _SalesViewState extends State<SalesView>
               children: [
                 const TextSpan(text: 'POS synced '),
                 TextSpan(
-                  text: posSyncedText,
+                  text: isRefreshing
+                      ? 'Syncing...'
+                      : (saleService.lastPosSyncedAt != null
+                          ? _formatRelativeTime(saleService.lastPosSyncedAt)
+                          : posSyncedText),
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
@@ -966,7 +1161,11 @@ class _SalesViewState extends State<SalesView>
                 ),
                 const TextSpan(text: ' & Orders synced '),
                 TextSpan(
-                  text: ordersSyncedText,
+                  text: isRefreshing
+                      ? 'Syncing...'
+                      : (saleService.lastOrdersSyncedAt != null
+                          ? _formatRelativeTime(saleService.lastOrdersSyncedAt)
+                          : ordersSyncedText),
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,

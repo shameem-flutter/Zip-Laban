@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_endpoints.dart';
 import '../models/odoo_company.dart';
 import '../models/sales_model.dart';
+import 'api_client.dart';
 import 'auth_service.dart';
 
 /// Service for managing companies & store branches via Odoo JSON-RPC API
@@ -14,6 +15,7 @@ class CompanyService extends ChangeNotifier {
   CompanyService._internal();
 
   static const String endpoint = ApiEndpoints.getCompanyData;
+  static const String _cachedCompaniesKey = 'waslasoft_cached_companies';
 
   List<OdooCompany> _companies = [];
   bool _isLoading = false;
@@ -30,6 +32,34 @@ class CompanyService extends ChangeNotifier {
   /// Returns [OutletInfo] list converted from active Odoo companies
   List<OutletInfo> get outlets =>
       _companies.map((c) => c.toOutletInfo()).toList();
+
+  /// Restores cached companies from persistent storage on startup
+  Future<void> restoreCachedCompanies() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonStr = prefs.getString(_cachedCompaniesKey);
+      if (jsonStr != null && jsonStr.isNotEmpty && _companies.isEmpty) {
+        final List<dynamic> list = jsonDecode(jsonStr);
+        _companies = list
+            .whereType<Map<String, dynamic>>()
+            .map((item) => OdooCompany.fromJson(item))
+            .toList();
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error restoring cached companies: $e');
+    }
+  }
+
+  Future<void> _saveCompaniesToCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = _companies.map((c) => c.toJson()).toList();
+      await prefs.setString(_cachedCompaniesKey, jsonEncode(list));
+    } catch (e) {
+      debugPrint('Error saving cached companies: $e');
+    }
+  }
 
   void clear() {
     _companies = [];
@@ -51,6 +81,7 @@ class CompanyService extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
+    final db = AuthService().currentUser?.db ?? 'ziplaban';
     final sessId = AuthService().currentUser?.sessionId;
 
     try {
@@ -59,13 +90,17 @@ class CompanyService extends ChangeNotifier {
         'params': {},
       };
 
-      final response = await http
+      final response = await ApiClient.client
           .post(
             Uri.parse(endpoint),
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
-              if (sessId != null && sessId.isNotEmpty) 'Cookie': 'session_id=$sessId',
+              'X-Odoo-Database': db,
+              if (sessId != null && sessId.isNotEmpty) ...{
+                'X-Openerp-Session-Id': sessId,
+                'Cookie': 'session_id=$sessId',
+              },
             },
             body: jsonEncode(payload),
           )
@@ -92,6 +127,7 @@ class CompanyService extends ChangeNotifier {
               .toList();
           _isFromLiveApi = true;
           _lastSyncedAt = DateTime.now();
+          _saveCompaniesToCache();
           _isLoading = false;
           notifyListeners();
           return true;

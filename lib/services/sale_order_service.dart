@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_endpoints.dart';
 import '../models/odoo_order.dart';
 import '../models/sales_model.dart';
+import 'api_client.dart';
 import 'auth_service.dart';
 
 /// Preset types for date filtering
@@ -23,9 +24,9 @@ class SaleOrderService extends ChangeNotifier {
   static final SaleOrderService _instance = SaleOrderService._internal();
   factory SaleOrderService() => _instance;
 
-  // Disabled (Analytics Only):
-  // static const String endpoint = ApiEndpoints.createSaleOrder;
   static const String listEndpoint = ApiEndpoints.listOrders;
+  static const String _cachedOrdersKey = 'waslasoft_cached_orders';
+  static const String _cachedOrdersSyncTimeKey = 'waslasoft_cached_orders_sync_time';
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -34,6 +35,8 @@ class SaleOrderService extends ChangeNotifier {
   DateTime? _lastPosSyncedAt;
   DateTime? _lastOrdersSyncedAt;
   bool _isFromLiveApi = false;
+  bool _isUsingCachedData = false;
+  bool _isSessionExpired = false;
   OutletInfo? _activeOutlet;
 
   // Date Filter State
@@ -46,6 +49,50 @@ class SaleOrderService extends ChangeNotifier {
     _applyPresetDates(DateFilterPreset.today);
   }
 
+  /// Restores cached orders from persistent storage on startup
+  Future<void> restoreCachedOrders() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonStr = prefs.getString(_cachedOrdersKey);
+      final syncTimeStr = prefs.getString(_cachedOrdersSyncTimeKey);
+      if (jsonStr != null && jsonStr.isNotEmpty && _odooOrders.isEmpty) {
+        final List<dynamic> list = jsonDecode(jsonStr);
+        final restored = list
+            .whereType<Map<String, dynamic>>()
+            .map((item) => OdooOrder.fromJson(item))
+            .toList();
+        if (restored.isNotEmpty) {
+          restored.sort(OdooOrder.compareLatestFirst);
+          _odooOrders = restored;
+          _syncedOrders.clear();
+          _syncedOrders.addAll(_odooOrders.map((o) => o.toMap()));
+          _isUsingCachedData = true;
+          if (syncTimeStr != null) {
+            _lastOrdersSyncedAt = DateTime.tryParse(syncTimeStr);
+            _lastPosSyncedAt = _lastOrdersSyncedAt;
+          }
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error restoring cached orders: $e');
+    }
+  }
+
+  Future<void> _saveOrdersToCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = _odooOrders.map((o) => o.toMap()).toList();
+      await prefs.setString(_cachedOrdersKey, jsonEncode(list));
+      if (_lastOrdersSyncedAt != null) {
+        await prefs.setString(
+            _cachedOrdersSyncTimeKey, _lastOrdersSyncedAt!.toIso8601String());
+      }
+    } catch (e) {
+      debugPrint('Error caching orders: $e');
+    }
+  }
+
   void clear() {
     _odooOrders = [];
     _syncedOrders.clear();
@@ -54,6 +101,8 @@ class SaleOrderService extends ChangeNotifier {
     _lastPosSyncedAt = null;
     _lastOrdersSyncedAt = null;
     _isFromLiveApi = false;
+    _isUsingCachedData = false;
+    _isSessionExpired = false;
     _activeOutlet = null;
     _applyPresetDates(DateFilterPreset.today);
     notifyListeners();
@@ -70,6 +119,8 @@ class SaleOrderService extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isFromLiveApi => _isFromLiveApi;
+  bool get isUsingCachedData => _isUsingCachedData;
+  bool get isSessionExpired => _isSessionExpired;
   List<OdooOrder> get odooOrders => List.unmodifiable(_odooOrders);
   List<Map<String, dynamic>> get syncedOrders => List.unmodifiable(_syncedOrders);
   DateTime? get lastPosSyncedAt => _lastPosSyncedAt;
@@ -459,33 +510,45 @@ class SaleOrderService extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
+    final db = AuthService().currentUser?.db ?? 'ziplaban';
     final sessId = AuthService().currentUser?.sessionId;
 
     try {
-      final payload = {
-        'jsonrpc': '2.0',
-        'params': {},
-      };
-
-      final request = http.Request('GET', Uri.parse(listEndpoint));
-      request.headers.addAll({
+      final headers = <String, String>{
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        if (sessId != null && sessId.isNotEmpty) 'Cookie': 'session_id=$sessId',
-      });
-      request.body = jsonEncode(payload);
+        'X-Odoo-Database': db,
+        if (sessId != null && sessId.isNotEmpty) ...{
+          'X-Openerp-Session-Id': sessId,
+          'Cookie': 'session_id=$sessId',
+        },
+      };
 
-      final streamedResponse =
-          await request.send().timeout(const Duration(seconds: 12));
-      final response = await http.Response.fromStream(streamedResponse);
+      final response = await ApiClient.client
+          .get(
+            Uri.parse(listEndpoint),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 12));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         if (data.containsKey('error') && data['error'] != null) {
           final err = data['error'];
-          _errorMessage = err is Map
-              ? (err['data']?['message'] ?? err['message'])
+          final errMsg = err is Map
+              ? (err['data']?['message'] ?? err['message'])?.toString() ?? 'Odoo Server Error'
               : err.toString();
+
+          if (errMsg.toLowerCase().contains('session expired')) {
+            _isSessionExpired = true;
+            _errorMessage = 'Odoo session expired. Please sign out and sign in again.';
+            AuthService().markSessionExpired();
+          } else {
+            _errorMessage = errMsg;
+          }
+          if (_odooOrders.isNotEmpty) {
+            _isUsingCachedData = true;
+          }
           _isLoading = false;
           notifyListeners();
           return false;
@@ -502,24 +565,53 @@ class SaleOrderService extends ChangeNotifier {
           _syncedOrders.clear();
           _syncedOrders.addAll(_odooOrders.map((o) => o.toMap()));
           _isFromLiveApi = true;
+          _isUsingCachedData = false;
+          _isSessionExpired = false;
           _lastOrdersSyncedAt = DateTime.now();
+          _lastPosSyncedAt = DateTime.now();
+          _errorMessage = null;
+          _saveOrdersToCache();
           _isLoading = false;
           notifyListeners();
           return true;
         } else {
           _errorMessage = 'Invalid response format from orders endpoint';
+          if (_odooOrders.isNotEmpty) {
+            _isUsingCachedData = true;
+          }
           _isLoading = false;
           notifyListeners();
           return false;
         }
+      } else if (response.statusCode == 404) {
+        _errorMessage = 'Orders endpoint not found (404) for database "$db".';
+        if (_odooOrders.isNotEmpty) {
+          _isUsingCachedData = true;
+        }
+        _isLoading = false;
+        notifyListeners();
+        return false;
       } else {
         _errorMessage = 'Server error (${response.statusCode})';
+        if (_odooOrders.isNotEmpty) {
+          _isUsingCachedData = true;
+        }
         _isLoading = false;
         notifyListeners();
         return false;
       }
     } catch (e) {
-      _errorMessage = 'Network connection error: ${e.toString()}';
+      final errStr = e.toString().toLowerCase();
+      if (errStr.contains('xmlhttprequest') || errStr.contains('clientexception') || errStr.contains('failed to fetch')) {
+        _errorMessage = 'Network connection issue or cross-origin access restricted.';
+      } else if (errStr.contains('timeout')) {
+        _errorMessage = 'Connection timeout: server took too long to respond.';
+      } else {
+        _errorMessage = 'Network error: ${e.toString()}';
+      }
+      if (_odooOrders.isNotEmpty) {
+        _isUsingCachedData = true;
+      }
       _isLoading = false;
       notifyListeners();
       return false;

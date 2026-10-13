@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'models/sales_model.dart';
 import 'services/auth_service.dart';
 import 'services/company_service.dart';
+import 'services/sale_order_service.dart';
 import 'theme/app_theme.dart';
 import 'views/login_view.dart';
 import 'views/more_view.dart';
@@ -12,6 +13,8 @@ import 'widgets/responsive_frame.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AuthService().restoreSession();
+  await CompanyService().restoreCachedCompanies();
+  await SaleOrderService().restoreCachedOrders();
   runApp(const SipLabanApp());
 }
 
