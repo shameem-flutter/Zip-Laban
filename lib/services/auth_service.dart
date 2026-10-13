@@ -57,6 +57,10 @@ class UserSession {
     final username = (result['username'] as String? ?? '').trim();
     final db = (result['db'] as String? ?? '').trim();
     final serverVersion = (result['server_version'] as String? ?? '').trim();
+    final resolvedSessionId = sessionId ??
+        result['session_id']?.toString() ??
+        result['session_token']?.toString() ??
+        result['sid']?.toString();
 
     final List<OutletInfo> branchesList = [];
 
@@ -110,7 +114,7 @@ class UserSession {
       db: db,
       serverVersion: serverVersion,
       branches: branchesList,
-      sessionId: sessionId,
+      sessionId: resolvedSessionId,
     );
   }
 }
@@ -125,12 +129,21 @@ class AuthService extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   bool _isRestored = false;
+  bool _isSessionExpired = false;
 
   UserSession? get currentUser => _currentUser;
   bool get isAuthenticated => currentUser != null;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isRestored => _isRestored;
+  bool get isSessionExpired => _isSessionExpired;
+
+  void markSessionExpired() {
+    if (!_isSessionExpired) {
+      _isSessionExpired = true;
+      notifyListeners();
+    }
+  }
 
   /// Restores persisted user session from local storage upon app startup
   Future<void> restoreSession() async {
@@ -197,6 +210,7 @@ class AuthService extends ChangeNotifier {
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
+              'X-Odoo-Database': trimmedDb,
             },
             body: jsonEncode(payload),
           )
@@ -234,7 +248,12 @@ class AuthService extends ChangeNotifier {
             final match = RegExp(r'session_id=([^;]+)').firstMatch(rawCookie);
             sessId = match?.group(1);
           }
+          sessId ??= response.headers['x-openerp-session-id'];
+          sessId ??= result['session_id']?.toString() ??
+              result['session_token']?.toString() ??
+              result['sid']?.toString();
 
+          _isSessionExpired = false;
           _currentUser = UserSession.fromOdooResult(result, sessionId: sessId);
           try {
             final prefs = await SharedPreferences.getInstance();

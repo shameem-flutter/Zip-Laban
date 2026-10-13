@@ -467,4 +467,60 @@ void main() {
     expect(auth.isAuthenticated, isFalse);
     expect(prefs.containsKey('waslasoft_user_session'), isFalse);
   });
+
+  test('CompanyService restores cached companies from SharedPreferences', () async {
+    final companyService = CompanyService();
+    companyService.clear();
+
+    final testCompanyJson = [
+      {'id': 2, 'name': 'KOTTAKKAL BRANCH'},
+      {'id': 3, 'name': 'KADAMPUZHA BRANCH'},
+    ];
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('waslasoft_cached_companies', jsonEncode(testCompanyJson));
+
+    await companyService.restoreCachedCompanies();
+    expect(companyService.companies.length, 2);
+    expect(companyService.outlets.length, 2);
+    expect(companyService.outlets.first.name, 'KOTTAKKAL BRANCH');
+  });
+
+  test('SaleOrderService restores cached orders from SharedPreferences', () async {
+    final saleService = SaleOrderService();
+    saleService.clear();
+
+    final testOrderJson = [
+      {
+        "invoice_number": "POS-V2-33",
+        "invoice_date": "2026-10-09",
+        "partner_name": "Test Customer",
+        "order_type": "takeaway",
+        "company_id": 2,
+        "company_name": "KOTTAKKAL BRANCH",
+        "amount_untaxed": 402.5,
+        "amount_tax": 0.0,
+        "amount_total": 402.5,
+        "amount_paid": 402.5,
+        "payments": []
+      }
+    ];
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('waslasoft_cached_orders', jsonEncode(testOrderJson));
+    await prefs.setString('waslasoft_cached_orders_sync_time', DateTime.now().toIso8601String());
+
+    await saleService.restoreCachedOrders();
+    saleService.clearDateFilter();
+    expect(saleService.odooOrders.length, 1);
+    expect(saleService.isUsingCachedData, isTrue);
+    expect(saleService.odooOrders.first.invoiceNumber, 'POS-V2-33');
+    expect(saleService.getTotalSalesForOutlet(const OutletInfo(
+      id: '2',
+      name: 'KOTTAKKAL BRANCH',
+      shortName: 'KB',
+      location: '',
+      posTerminalId: '',
+    )), 402.5);
+  });
 }
