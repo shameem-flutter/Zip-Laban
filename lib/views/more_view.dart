@@ -3,9 +3,6 @@ import '../models/sales_model.dart';
 import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/app_logo.dart';
-import '../widgets/salesperson_directory_modal.dart';
-import 'customer_directory_view.dart';
-import 'product_catalog_view.dart';
 import '../services/pwa_install/pwa_install_service.dart';
 
 class MoreView extends StatelessWidget {
@@ -151,30 +148,6 @@ class MoreView extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 20),
-
-          // Store Operations & POS Actions Group
-          _buildSettingsGroup('Store Operations & Management', [
-            _settingTile(
-              Icons.inventory_2_outlined,
-              'Menu & Products Catalog',
-              'Dishes, categories & pricing',
-              onTap: () => ProductCatalogView.showModal(context),
-            ),
-            _settingTile(
-              Icons.people_alt_outlined,
-              'Customer Directory & Accounts',
-              'Customer records & credit ledgers',
-              onTap: () => CustomerDirectoryView.showModal(context),
-            ),
-            _settingTile(
-              Icons.people_outline,
-              'Staff & Waiters Directory',
-              'Active waiters, cashiers & shift teams',
-              onTap: () => SalespersonDirectoryModal.show(context),
-            ),
-          ]),
-
           const SizedBox(height: 16),
 
           _buildSettingsGroup('System Information', [
@@ -275,7 +248,7 @@ class MoreView extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 const Text(
-                  'Enterprise Dining & POS Management Suite',
+                  'Enterprise Dining Analytics Suite',
                   style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textSecondary,

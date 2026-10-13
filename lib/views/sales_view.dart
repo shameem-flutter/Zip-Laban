@@ -5,7 +5,6 @@ import '../services/sale_order_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/custom_curve_chart.dart';
 import '../widgets/daily_snapshot_modal.dart';
-import '../widgets/orders_detail_modal.dart';
 import '../widgets/outlet_selector_dialog.dart';
 
 class SalesView extends StatefulWidget {
@@ -188,6 +187,40 @@ class _SalesViewState extends State<SalesView>
   }
 
   void _showDatePicker() {
+    final saleService = SaleOrderService();
+    final now = DateTime.now();
+    final yesterday = now.subtract(const Duration(days: 1));
+    final todayStr = _formatDateShort(now);
+    final yesterdayStr = _formatDateShort(yesterday);
+    final monthStr = '${_formatMonthFull(now.month)} ${now.year}';
+
+    final options = [
+      {
+        'preset': DateFilterPreset.today,
+        'title': 'Today ($todayStr)',
+      },
+      {
+        'preset': DateFilterPreset.yesterday,
+        'title': 'Yesterday ($yesterdayStr)',
+      },
+      {
+        'preset': DateFilterPreset.last7Days,
+        'title': 'Last 7 Days',
+      },
+      {
+        'preset': DateFilterPreset.thisMonth,
+        'title': 'This Month ($monthStr)',
+      },
+      {
+        'preset': DateFilterPreset.custom,
+        'title': 'Custom Date Range',
+      },
+      {
+        'preset': DateFilterPreset.all,
+        'title': 'All Time',
+      },
+    ];
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -196,19 +229,6 @@ class _SalesViewState extends State<SalesView>
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        final now = DateTime.now();
-        final yesterday = now.subtract(const Duration(days: 1));
-        final todayStr = _formatDateShort(now);
-        final yesterdayStr = _formatDateShort(yesterday);
-        final monthStr = '${_formatMonthFull(now.month)} ${now.year}';
-
-        final options = [
-          'Today ($todayStr)',
-          'Yesterday ($yesterdayStr)',
-          'Last 7 Days',
-          'This Month ($monthStr)',
-          'Custom Date Range',
-        ];
         return SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -237,12 +257,24 @@ class _SalesViewState extends State<SalesView>
                 ),
                 const SizedBox(height: 12),
                 ...options.map((opt) {
-                  final isSelected = opt.contains(selectedDate);
+                  final preset = opt['preset'] as DateFilterPreset;
+                  final title = opt['title'] as String;
+                  final isSelected = saleService.dateFilterPreset == preset;
+
+                  String? subtitle;
+                  if (preset == DateFilterPreset.custom &&
+                      saleService.dateFilterPreset == DateFilterPreset.custom &&
+                      saleService.filterStartDate != null &&
+                      saleService.filterEndDate != null) {
+                    subtitle =
+                        '${_formatDateShort(saleService.filterStartDate!)} - ${_formatDateShort(saleService.filterEndDate!)}';
+                  }
+
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
                     dense: true,
                     title: Text(
-                      opt,
+                      title,
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight:
@@ -252,18 +284,63 @@ class _SalesViewState extends State<SalesView>
                             : AppColors.textPrimary,
                       ),
                     ),
+                    subtitle: subtitle != null
+                        ? Text(
+                            subtitle,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          )
+                        : null,
                     trailing: isSelected
                         ? const Icon(Icons.check, color: AppColors.primaryBlue)
                         : null,
-                    onTap: () {
-                      setState(() {
-                        if (opt.contains(yesterdayStr)) {
-                          selectedDate = yesterdayStr;
-                        } else {
-                          selectedDate = todayStr;
-                        }
-                      });
+                    onTap: () async {
                       Navigator.pop(ctx);
+                      if (preset == DateFilterPreset.custom) {
+                        final currentStart = saleService.filterStartDate ?? now;
+                        final currentEnd = saleService.filterEndDate ?? now;
+                        final picked = await showDateRangePicker(
+                          context: context,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2030),
+                          initialDateRange: DateTimeRange(
+                            start: currentStart,
+                            end: currentEnd,
+                          ),
+                          builder: (context, child) {
+                            return Theme(
+                              data: Theme.of(context).copyWith(
+                                colorScheme: const ColorScheme.light(
+                                  primary: AppColors.primaryBlue,
+                                  onPrimary: Colors.white,
+                                  onSurface: AppColors.textPrimary,
+                                ),
+                              ),
+                              child: child!,
+                            );
+                          },
+                        );
+                        if (picked != null) {
+                          saleService.setDateFilterPreset(
+                            DateFilterPreset.custom,
+                            customRange: picked,
+                          );
+                          if (mounted) {
+                            setState(() {
+                              selectedDate = saleService.dateFilterLabel;
+                            });
+                          }
+                        }
+                      } else {
+                        saleService.setDateFilterPreset(preset);
+                        if (mounted) {
+                          setState(() {
+                            selectedDate = saleService.dateFilterLabel;
+                          });
+                        }
+                      }
                     },
                   );
                 }),
@@ -272,44 +349,6 @@ class _SalesViewState extends State<SalesView>
           ),
         );
       },
-    );
-  }
-
-  void _showChannelOptions(String channel) {
-    final saleService = SaleOrderService();
-    final ch = channel.toUpperCase();
-    final isDineIn = ch.contains('DINE');
-    final isDelivery = ch.contains('DELIV');
-
-    final double amount;
-    final int count;
-    final String metric;
-
-    if (isDineIn) {
-      amount = saleService.getDineInSalesForOutlet(widget.selectedOutlet);
-      count = saleService.getDineInCountForOutlet(widget.selectedOutlet);
-      metric = '${count > 0 ? 12 : 0} Min Turn Around Time';
-    } else if (isDelivery) {
-      amount = saleService.getDeliverySalesForOutlet(widget.selectedOutlet);
-      count = saleService.getDeliveryCountForOutlet(widget.selectedOutlet);
-      final aov = saleService
-          .getDeliveryAverageOrderValueForOutlet(widget.selectedOutlet);
-      metric = '${_formatCurrency(aov)} Average Order Value';
-    } else {
-      amount = saleService.getPickUpSalesForOutlet(widget.selectedOutlet);
-      count = saleService.getPickUpCountForOutlet(widget.selectedOutlet);
-      final aov =
-          saleService.getPickUpAverageOrderValueForOutlet(widget.selectedOutlet);
-      metric = '${_formatCurrency(aov)} Average Order Value';
-    }
-
-    OrdersDetailModal.show(
-      context,
-      categoryTitle: channel,
-      totalAmount: amount,
-      orderCount: count,
-      metricInfo: metric,
-      selectedOutlet: widget.selectedOutlet,
     );
   }
 
@@ -345,7 +384,7 @@ class _SalesViewState extends State<SalesView>
                         const SizedBox(height: 22),
 
                         // 2. Sales Overview Section Header
-                        _buildSalesOverviewHeader(),
+                        _buildSalesOverviewHeader(saleService),
 
                         const SizedBox(height: 14),
 
@@ -749,7 +788,7 @@ class _SalesViewState extends State<SalesView>
   }
 
   // 2. Sales Overview Section Header matching screenshot
-  Widget _buildSalesOverviewHeader() {
+  Widget _buildSalesOverviewHeader(SaleOrderService saleService) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -794,7 +833,7 @@ class _SalesViewState extends State<SalesView>
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        selectedDate,
+                        saleService.dateFilterLabel,
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -969,74 +1008,30 @@ class _SalesViewState extends State<SalesView>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Icon + DINE IN + View More >
+          // Header: Icon + DINE IN
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: AppColors.cyanBg,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.restaurant_rounded,
-                      color: AppColors.cyanIcon,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'DINE IN',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                ],
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppColors.cyanBg,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.restaurant_rounded,
+                  color: AppColors.cyanIcon,
+                  size: 18,
+                ),
               ),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(4),
-                  onTap: () {
-                    OrdersDetailModal.show(
-                      context,
-                      categoryTitle: 'DINE IN',
-                      totalAmount: dineSales,
-                      orderCount: dineCount,
-                      metricInfo: '0 Min Turn Around Time',
-                      selectedOutlet: widget.selectedOutlet,
-                    );
-                  },
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Text(
-                          'View More',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primaryBlue,
-                          ),
-                        ),
-                        SizedBox(width: 4),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          size: 18,
-                          color: AppColors.primaryBlue,
-                        ),
-                      ],
-                    ),
-                  ),
+              const SizedBox(width: 10),
+              const Text(
+                'DINE IN',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                  letterSpacing: 0.6,
                 ),
               ),
             ],
@@ -1055,60 +1050,50 @@ class _SalesViewState extends State<SalesView>
           ),
           const SizedBox(height: 16),
 
-          // Bottom stats: dynamic Orders, Turn Around Time, 3-dots
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
+          // Bottom stats: dynamic Orders, Turn Around Time
+          Wrap(
+            spacing: 16,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(
-                child: Wrap(
-                  spacing: 16,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+              RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary,
+                    fontFamily: 'Inter',
+                  ),
                   children: [
-                    RichText(
-                      text: TextSpan(
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          color: AppColors.textSecondary,
-                          fontFamily: 'Inter',
-                        ),
-                        children: [
-                          TextSpan(
-                            text: '$dineCount ',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const TextSpan(text: 'Orders'),
-                        ],
+                    TextSpan(
+                      text: '$dineCount ',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
                       ),
                     ),
-                    RichText(
-                      text: TextSpan(
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          color: AppColors.textSecondary,
-                          fontFamily: 'Inter',
-                        ),
-                        children: [
-                          TextSpan(
-                            text: '0 Min ',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const TextSpan(text: 'Turn Around Time'),
-                        ],
-                      ),
-                    ),
+                    const TextSpan(text: 'Orders'),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              _buildDotsMenuButton('DINE IN'),
+              RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary,
+                    fontFamily: 'Inter',
+                  ),
+                  children: [
+                    TextSpan(
+                      text: '0 Min ',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const TextSpan(text: 'Turn Around Time'),
+                  ],
+                ),
+              ),
             ],
           ),
         ],
@@ -1146,75 +1131,30 @@ class _SalesViewState extends State<SalesView>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Icon + PICK UP + View More >
+          // Header: Icon + PICK UP
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: AppColors.greenBg,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.shopping_bag_outlined,
-                      color: AppColors.greenIcon,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'PICK UP',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                ],
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppColors.greenBg,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.shopping_bag_outlined,
+                  color: AppColors.greenIcon,
+                  size: 18,
+                ),
               ),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(4),
-                  onTap: () {
-                    OrdersDetailModal.show(
-                      context,
-                      categoryTitle: 'PICK UP',
-                      totalAmount: pickSales,
-                      orderCount: pickCount,
-                      metricInfo:
-                          '${_formatCurrency(aov)} Average Order Value',
-                      selectedOutlet: widget.selectedOutlet,
-                    );
-                  },
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Text(
-                          'View More',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primaryBlue,
-                          ),
-                        ),
-                        SizedBox(width: 4),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          size: 18,
-                          color: AppColors.primaryBlue,
-                        ),
-                      ],
-                    ),
-                  ),
+              const SizedBox(width: 10),
+              const Text(
+                'PICK UP',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                  letterSpacing: 0.6,
                 ),
               ),
             ],
@@ -1233,90 +1173,53 @@ class _SalesViewState extends State<SalesView>
           ),
           const SizedBox(height: 16),
 
-          // Bottom stats: dynamic Orders, Average Order Value, 3-dots
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
+          // Bottom stats: dynamic Orders, Average Order Value
+          Wrap(
+            spacing: 16,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(
-                child: Wrap(
-                  spacing: 16,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+              RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary,
+                    fontFamily: 'Inter',
+                  ),
                   children: [
-                    RichText(
-                      text: TextSpan(
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          color: AppColors.textSecondary,
-                          fontFamily: 'Inter',
-                        ),
-                        children: [
-                          TextSpan(
-                            text: '$pickCount ',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const TextSpan(text: 'Orders'),
-                        ],
+                    TextSpan(
+                      text: '$pickCount ',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
                       ),
                     ),
-                    RichText(
-                      text: TextSpan(
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          color: AppColors.textSecondary,
-                          fontFamily: 'Inter',
-                        ),
-                        children: [
-                          TextSpan(
-                            text: '${_formatCurrency(aov)} ',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const TextSpan(text: 'Average Order Value'),
-                        ],
-                      ),
-                    ),
+                    const TextSpan(text: 'Orders'),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              _buildDotsMenuButton('PICK UP'),
+              RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary,
+                    fontFamily: 'Inter',
+                  ),
+                  children: [
+                    TextSpan(
+                      text: '${_formatCurrency(aov)} ',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const TextSpan(text: 'Average Order Value'),
+                  ],
+                ),
+              ),
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildDotsMenuButton(String channel) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () => _showChannelOptions(channel),
-        child: Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: AppColors.cardBorder,
-              width: 1.0,
-            ),
-          ),
-          child: const Icon(
-            Icons.more_vert_rounded,
-            size: 18,
-            color: AppColors.textPrimary,
-          ),
-        ),
       ),
     );
   }
@@ -1352,75 +1255,30 @@ class _SalesViewState extends State<SalesView>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Icon + DELIVERY + View More >
+          // Header: Icon + DELIVERY
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF4ED),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.two_wheeler_rounded,
-                      color: Color(0xFFFB6514),
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'DELIVERY',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                ],
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF4ED),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.two_wheeler_rounded,
+                  color: Color(0xFFFB6514),
+                  size: 18,
+                ),
               ),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(4),
-                  onTap: () {
-                    OrdersDetailModal.show(
-                      context,
-                      categoryTitle: 'DELIVERY',
-                      totalAmount: delivSales,
-                      orderCount: delivCount,
-                      metricInfo:
-                          '${_formatCurrency(aov)} Average Order Value',
-                      selectedOutlet: widget.selectedOutlet,
-                    );
-                  },
-                  child: const Padding(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'View More',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primaryBlue,
-                          ),
-                        ),
-                        SizedBox(width: 4),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          size: 18,
-                          color: AppColors.primaryBlue,
-                        ),
-                      ],
-                    ),
-                  ),
+              const SizedBox(width: 10),
+              const Text(
+                'DELIVERY',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                  letterSpacing: 0.6,
                 ),
               ),
             ],
@@ -1439,60 +1297,50 @@ class _SalesViewState extends State<SalesView>
           ),
           const SizedBox(height: 16),
 
-          // Bottom stats: dynamic Order, Average Order Value, 3-dots
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
+          // Bottom stats: dynamic Order, Average Order Value
+          Wrap(
+            spacing: 16,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(
-                child: Wrap(
-                  spacing: 16,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+              RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary,
+                    fontFamily: 'Inter',
+                  ),
                   children: [
-                    RichText(
-                      text: TextSpan(
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          color: AppColors.textSecondary,
-                          fontFamily: 'Inter',
-                        ),
-                        children: [
-                          TextSpan(
-                            text: '$delivCount ',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          TextSpan(text: delivCount == 1 ? 'Order' : 'Order'),
-                        ],
+                    TextSpan(
+                      text: '$delivCount ',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
                       ),
                     ),
-                    RichText(
-                      text: TextSpan(
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          color: AppColors.textSecondary,
-                          fontFamily: 'Inter',
-                        ),
-                        children: [
-                          TextSpan(
-                            text: '${_formatCurrency(aov)} ',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const TextSpan(text: 'Average Order Value'),
-                        ],
-                      ),
-                    ),
+                    TextSpan(text: delivCount == 1 ? 'Order' : 'Orders'),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              _buildDotsMenuButton('DELIVERY'),
+              RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary,
+                    fontFamily: 'Inter',
+                  ),
+                  children: [
+                    TextSpan(
+                      text: '${_formatCurrency(aov)} ',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const TextSpan(text: 'Average Order Value'),
+                  ],
+                ),
+              ),
             ],
           ),
         ],
@@ -1911,71 +1759,23 @@ class _SalesViewState extends State<SalesView>
           ),
           const SizedBox(height: 20),
 
-          // Payment rows matching screenshot 2
+          // Payment rows
           _buildPaymentRow(
             dotColor: const Color(0xFF12B76A),
             label: 'Not Paid',
             amount: _formatCurrency(notPaidAmount),
-            showChevron: notPaidAmount > 0,
-            onTap: notPaidAmount > 0
-                ? () {
-                    OrdersDetailModal.show(
-                      context,
-                      categoryTitle: 'UNPAID',
-                      totalAmount: notPaidAmount,
-                      orderCount: saleService
-                          .getOrdersForOutlet(widget.selectedOutlet,
-                              channel: 'unpaid')
-                          .length,
-                      metricInfo: 'Pending Customer Invoices',
-                      selectedOutlet: widget.selectedOutlet,
-                    );
-                  }
-                : null,
           ),
           const SizedBox(height: 14),
           _buildPaymentRow(
             dotColor: const Color(0xFF1E60F2),
             label: 'Cash',
             amount: _formatCurrency(cashAmount),
-            showChevron: cashAmount > 0,
-            onTap: cashAmount > 0
-                ? () {
-                    OrdersDetailModal.show(
-                      context,
-                      categoryTitle: 'CASH',
-                      totalAmount: cashAmount,
-                      orderCount: saleService
-                          .getOrdersForOutlet(widget.selectedOutlet,
-                              channel: 'cash')
-                          .length,
-                      metricInfo: 'Cash Drawer Receipts',
-                      selectedOutlet: widget.selectedOutlet,
-                    );
-                  }
-                : null,
           ),
           const SizedBox(height: 14),
           _buildPaymentRow(
             dotColor: const Color(0xFFF79009),
             label: 'Card',
             amount: _formatCurrency(cardAmount),
-            showChevron: cardAmount > 0,
-            onTap: cardAmount > 0
-                ? () {
-                    OrdersDetailModal.show(
-                      context,
-                      categoryTitle: 'CARD',
-                      totalAmount: cardAmount,
-                      orderCount: saleService
-                          .getOrdersForOutlet(widget.selectedOutlet,
-                              channel: 'card')
-                          .length,
-                      metricInfo: 'Card Machine Transactions',
-                      selectedOutlet: widget.selectedOutlet,
-                    );
-                  }
-                : null,
           ),
           const SizedBox(height: 14),
           _buildPaymentRow(
@@ -1994,19 +1794,6 @@ class _SalesViewState extends State<SalesView>
             dotColor: const Color(0xFFF59E0B),
             label: 'Other',
             amount: _formatCurrency(otherAmount),
-            showChevron: true,
-            onTap: () {
-              OrdersDetailModal.show(
-                context,
-                categoryTitle: 'OTHER PAYMENTS',
-                totalAmount: otherAmount,
-                orderCount: saleService
-                    .getOrdersForOutlet(widget.selectedOutlet, channel: 'other')
-                    .length,
-                metricInfo: 'Direct POS & Digital Aggregators',
-                selectedOutlet: widget.selectedOutlet,
-              );
-            },
           ),
         ],
       ),
@@ -2017,55 +1804,38 @@ class _SalesViewState extends State<SalesView>
     required Color dotColor,
     required String label,
     required String amount,
-    bool showChevron = false,
-    VoidCallback? onTap,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: dotColor,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF344054),
-                ),
-              ),
-              const Spacer(),
-              Text(
-                amount,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              if (showChevron) ...[
-                const SizedBox(width: 4),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  size: 16,
-                  color: Color(0xFF344054),
-                ),
-              ],
-            ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: dotColor,
+              shape: BoxShape.circle,
+            ),
           ),
-        ),
+          const SizedBox(width: 12),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF344054),
+            ),
+          ),
+          const Spacer(),
+          Text(
+            amount,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2285,7 +2055,7 @@ class _SalesViewState extends State<SalesView>
     final bucketSales = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
 
     for (final o in orders) {
-      final dt = o.parsedDate;
+      final dt = o.parsedDateTime ?? o.parsedDate;
       int bucket = 3; // default evening 4pm
       if (dt != null && (dt.hour != 0 || dt.minute != 0)) {
         final h = dt.hour;

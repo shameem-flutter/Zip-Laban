@@ -31,16 +31,11 @@ class CustomBottomNavBar extends StatelessWidget {
             children: [
               _buildNavItem(
                 index: 0,
-                label: 'Sales',
+                label: 'Analytics',
                 icon: Icons.bar_chart_rounded,
               ),
               _buildNavItem(
                 index: 1,
-                label: 'Operation',
-                icon: Icons.sensors_rounded,
-              ),
-              _buildNavItem(
-                index: 2,
                 label: 'More',
                 icon: Icons.more_vert_rounded,
               ),

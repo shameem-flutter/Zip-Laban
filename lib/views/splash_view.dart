@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/company_service.dart';
-import '../services/customer_service.dart';
-import '../services/product_service.dart';
 import '../services/sale_order_service.dart';
-import '../services/salesperson_service.dart';
 import '../widgets/app_logo.dart';
 
 /// Premium animated splash screen for Waslasoft Restaurant POS
@@ -71,9 +68,6 @@ class _SplashViewState extends State<SplashView>
       await Future.wait([
         CompanyService().fetchCompanies(),
         SaleOrderService().fetchOrders(),
-        ProductService().fetchProducts(),
-        CustomerService().fetchCustomers(),
-        SalespersonService().fetchSalespersons(),
       ]).timeout(const Duration(seconds: 3));
     } catch (_) {
       // Proceed quickly even if network has delay

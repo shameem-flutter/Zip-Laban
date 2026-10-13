@@ -29,10 +29,9 @@ class _LoginViewState extends State<LoginView> {
     super.dispose();
   }
 
-  void _handleLogin({bool isAuto = false}) async {
+  void _handleLogin() async {
     FocusScope.of(context).unfocus();
-    if (!isAuto &&
-        _formKey.currentState != null &&
+    if (_formKey.currentState != null &&
         !_formKey.currentState!.validate()) {
       return;
     }

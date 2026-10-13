@@ -83,8 +83,19 @@ class OdooOrder {
     return 'Pick Up';
   }
 
-  /// Parsed DateTime for chronological comparison
-  DateTime? get parsedDate => DateTime.tryParse(invoiceDate);
+  /// Parsed DateTime (preserving timestamp if available)
+  DateTime? get parsedDateTime {
+    final dt = DateTime.tryParse(invoiceDate);
+    if (dt == null) return null;
+    return dt.isUtc ? dt.toLocal() : dt;
+  }
+
+  /// Normalized Date (Year, Month, Day) for date comparisons without timezone/hour offsets
+  DateTime? get parsedDate {
+    final dt = parsedDateTime;
+    if (dt == null) return null;
+    return DateTime(dt.year, dt.month, dt.day);
+  }
 
   /// Status badge label
   String get statusDisplay {
@@ -115,8 +126,8 @@ class OdooOrder {
   /// Comparator to sort orders latest-first (newest date first, then highest sequence first)
   static int compareLatestFirst(OdooOrder a, OdooOrder b) {
     // 1. Primary: Compare date descending
-    final dateA = a.parsedDate;
-    final dateB = b.parsedDate;
+    final dateA = a.parsedDateTime;
+    final dateB = b.parsedDateTime;
     if (dateA != null && dateB != null) {
       final dateComp = dateB.compareTo(dateA);
       if (dateComp != 0) return dateComp;
