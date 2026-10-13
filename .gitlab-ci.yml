@@ -6,10 +6,8 @@ deploy_production:
   stage: deploy
   image: alpine:3.20
 
-  # Uncomment and replace with your runner's actual tag if required.
-  # tags:
-  #   - docker
-
+  # Leave tags unset if an eligible Linux shared runner
+  # accepts untagged jobs.
   rules:
     - if: '$CI_COMMIT_BRANCH == "Production"'
       when: manual
@@ -20,13 +18,8 @@ deploy_production:
     - apk add --no-cache openssh-client
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-
-    # SSH_PRIVATE_KEY must be a GitLab File variable.
     - cp "$SSH_PRIVATE_KEY" ~/.ssh/id_ed25519
     - chmod 600 ~/.ssh/id_ed25519
-
-    # SSH_KNOWN_HOSTS must be a File variable containing
-    # the verified SSH host key for your server.
     - cp "$SSH_KNOWN_HOSTS" ~/.ssh/known_hosts
     - chmod 600 ~/.ssh/known_hosts
 
@@ -40,7 +33,7 @@ deploy_production:
           "$SERVER_USER@$SERVER_HOST" 'set -eu
         cd /opt/ziplaban_mobile_report
 
-        echo "Fetching latest Production branch..."
+        echo "Fetching latest Production code..."
         git fetch origin Production
         git checkout Production
         git reset --hard origin/Production
@@ -51,7 +44,7 @@ deploy_production:
         echo "Checking PWA container..."
         docker compose -f compose.yaml ps sip-laban-pwa
 
-        echo "Testing local PWA response..."
+        echo "Testing local website response..."
         curl -fsS http://127.0.0.1:8080/ -o /dev/null
 
         echo "PWA deployment completed successfully."
