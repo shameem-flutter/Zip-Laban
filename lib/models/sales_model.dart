@@ -14,6 +14,24 @@ class OutletInfo {
     required this.posTerminalId,
     this.isOnline = true,
   });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'shortName': shortName,
+        'location': location,
+        'posTerminalId': posTerminalId,
+        'isOnline': isOnline,
+      };
+
+  factory OutletInfo.fromJson(Map<String, dynamic> json) => OutletInfo(
+        id: json['id']?.toString() ?? '',
+        name: json['name']?.toString() ?? '',
+        shortName: json['shortName']?.toString() ?? '',
+        location: json['location']?.toString() ?? '',
+        posTerminalId: json['posTerminalId']?.toString() ?? '',
+        isOnline: json['isOnline'] as bool? ?? true,
+      );
 }
 
 class ChannelSales {
