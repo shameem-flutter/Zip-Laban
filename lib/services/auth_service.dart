@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../constants/api_endpoints.dart';
 import '../models/sales_model.dart';
+import 'company_service.dart';
+import 'sale_order_service.dart';
 
 class UserSession {
   final int uid;
@@ -25,10 +27,10 @@ class UserSession {
 
   factory UserSession.fromOdooResult(Map<String, dynamic> result, {String? sessionId}) {
     final uid = result['uid'] as int? ?? 0;
-    final name = result['name'] as String? ?? 'Admin';
-    final username = result['username'] as String? ?? 'admin';
-    final db = result['db'] as String? ?? '';
-    final serverVersion = result['server_version'] as String? ?? '19.0';
+    final name = (result['name'] as String? ?? '').trim();
+    final username = (result['username'] as String? ?? '').trim();
+    final db = (result['db'] as String? ?? '').trim();
+    final serverVersion = (result['server_version'] as String? ?? '').trim();
 
     final List<OutletInfo> branchesList = [];
 
@@ -45,17 +47,14 @@ class UserSession {
           if (short.length > 18) {
             short = '${short.substring(0, 15)}...';
           }
+          final location = (val['city'] ?? val['street'] ?? '').toString().trim();
           branchesList.add(
             OutletInfo(
               id: id,
               name: companyName,
               shortName: short,
-              location: companyName.contains('KOTTAKKAL')
-                  ? 'Kottakkal, Malappuram'
-                  : (companyName.contains('KADAMPUZHA')
-                      ? 'Kadampuzha, Kerala'
-                      : 'Branch Location'),
-              posTerminalId: 'POS-0$id',
+              location: location,
+              posTerminalId: '',
             ),
           );
         }
@@ -63,16 +62,19 @@ class UserSession {
     }
 
     if (branchesList.isEmpty) {
-      final fallbackName = name.isNotEmpty ? '$name Branch' : 'Main Branch';
-      branchesList.add(
-        OutletInfo(
-          id: '1',
-          name: fallbackName,
-          shortName: fallbackName,
-          location: 'Main Location',
-          posTerminalId: 'POS-01',
-        ),
-      );
+      final compId = result['company_id'];
+      final compName = (result['company_name'] as String? ?? '').trim();
+      if (compId != null && compId != false && compName.isNotEmpty) {
+        branchesList.add(
+          OutletInfo(
+            id: compId.toString(),
+            name: compName,
+            shortName: compName.length > 18 ? '${compName.substring(0, 15)}...' : compName,
+            location: '',
+            posTerminalId: '',
+          ),
+        );
+      }
     }
 
     return UserSession(
@@ -102,8 +104,6 @@ class AuthService extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   static const String endpoint = ApiEndpoints.authenticate;
-
-
 
   Future<bool> login({
     required String db,
@@ -225,6 +225,8 @@ class AuthService extends ChangeNotifier {
   void logout() {
     _currentUser = null;
     _errorMessage = null;
+    CompanyService().clear();
+    SaleOrderService().clear();
     notifyListeners();
   }
 }

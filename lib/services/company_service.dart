@@ -11,9 +11,7 @@ import 'auth_service.dart';
 class CompanyService extends ChangeNotifier {
   static final CompanyService _instance = CompanyService._internal();
   factory CompanyService() => _instance;
-  CompanyService._internal() {
-    _populateDefaultCompanies();
-  }
+  CompanyService._internal();
 
   static const String endpoint = ApiEndpoints.getCompanyData;
 
@@ -30,46 +28,16 @@ class CompanyService extends ChangeNotifier {
   bool get isFromLiveApi => _isFromLiveApi;
 
   /// Returns [OutletInfo] list converted from active Odoo companies
-  List<OutletInfo> get outlets {
-    if (_companies.isEmpty) {
-      return defaultOutlets;
-    }
-    return _companies.map((c) => c.toOutletInfo()).toList();
-  }
+  List<OutletInfo> get outlets =>
+      _companies.map((c) => c.toOutletInfo()).toList();
 
-  static final List<Map<String, dynamic>> defaultCompanyResult = [
-    {
-      "id": 2,
-      "name": "KOTTAKKAL BRANCH",
-    },
-    {
-      "id": 3,
-      "name": "KADAMPUZHA BRANCH",
-    },
-  ];
-
-  static final List<OutletInfo> defaultOutlets = [
-    const OutletInfo(
-      id: '2',
-      name: 'KOTTAKKAL BRANCH',
-      shortName: 'Kottakkal Branch...',
-      location: 'Kottakkal, Malappuram',
-      posTerminalId: 'POS-02',
-    ),
-    const OutletInfo(
-      id: '3',
-      name: 'KADAMPUZHA BRANCH',
-      shortName: 'Kadampuzha Branch...',
-      location: 'Kadampuzha, Kerala',
-      posTerminalId: 'POS-03',
-    ),
-  ];
-
-  void _populateDefaultCompanies() {
-    _companies = defaultCompanyResult
-        .map((json) => OdooCompany.fromJson(json))
-        .toList();
-    _lastSyncedAt = DateTime.now();
+  void clear() {
+    _companies = [];
+    _isLoading = false;
+    _errorMessage = null;
+    _lastSyncedAt = null;
+    _isFromLiveApi = false;
+    notifyListeners();
   }
 
   /// Fetches branch and company data from the Odoo endpoint

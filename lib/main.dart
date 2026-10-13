@@ -5,7 +5,6 @@ import 'services/company_service.dart';
 import 'theme/app_theme.dart';
 import 'views/login_view.dart';
 import 'views/more_view.dart';
-import 'views/operation_view.dart';
 import 'views/sales_view.dart';
 import 'widgets/custom_bottom_nav_bar.dart';
 import 'widgets/responsive_frame.dart';
@@ -23,7 +22,7 @@ class SipLabanApp extends StatelessWidget {
     final authService = AuthService();
 
     return MaterialApp(
-      title: 'Waslasoft Restaurant - Sales & Operations',
+      title: 'Waslasoft Restaurant - Sales Analytics',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: ResponsiveFrame(
@@ -58,6 +57,14 @@ class MainAppShell extends StatefulWidget {
 class _MainAppShellState extends State<MainAppShell> {
   int _currentTabIndex = 0;
 
+  static const OutletInfo _placeholderOutlet = OutletInfo(
+    id: '0',
+    name: 'Main Outlet',
+    shortName: 'Main Outlet',
+    location: '',
+    posTerminalId: '',
+  );
+
   late List<OutletInfo> _outlets;
   late OutletInfo _selectedOutlet;
 
@@ -66,6 +73,7 @@ class _MainAppShellState extends State<MainAppShell> {
     super.initState();
     _initOutlets();
     CompanyService().addListener(_onCompanyChanged);
+    CompanyService().fetchCompanies();
   }
 
   @override
@@ -77,10 +85,7 @@ class _MainAppShellState extends State<MainAppShell> {
   void _onCompanyChanged() {
     if (mounted) {
       setState(() {
-        _outlets = CompanyService().outlets;
-        if (!_outlets.any((o) => o.id == _selectedOutlet.id)) {
-          _selectedOutlet = _outlets.isNotEmpty ? _outlets.first : _selectedOutlet;
-        }
+        _syncOutlets();
       });
     }
   }
@@ -88,12 +93,33 @@ class _MainAppShellState extends State<MainAppShell> {
   @override
   void didUpdateWidget(covariant MainAppShell oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _initOutlets();
+    if (widget.branches != oldWidget.branches) {
+      _initOutlets();
+    }
   }
 
   void _initOutlets() {
-    _outlets = CompanyService().outlets;
-    if (_outlets.isNotEmpty) {
+    final companyOutlets = CompanyService().outlets;
+    if (companyOutlets.isNotEmpty) {
+      _outlets = companyOutlets;
+    } else if (widget.branches != null && widget.branches!.isNotEmpty) {
+      _outlets = widget.branches!;
+    } else {
+      _outlets = const [_placeholderOutlet];
+    }
+    _selectedOutlet = _outlets.first;
+  }
+
+  void _syncOutlets() {
+    final companyOutlets = CompanyService().outlets;
+    if (companyOutlets.isNotEmpty) {
+      _outlets = companyOutlets;
+    } else if (widget.branches != null && widget.branches!.isNotEmpty) {
+      _outlets = widget.branches!;
+    } else {
+      _outlets = const [_placeholderOutlet];
+    }
+    if (!_outlets.any((o) => o.id == _selectedOutlet.id)) {
       _selectedOutlet = _outlets.first;
     }
   }
@@ -111,9 +137,6 @@ class _MainAppShellState extends State<MainAppShell> {
             onOutletChanged: (outlet) {
               setState(() => _selectedOutlet = outlet);
             },
-          ),
-          OperationView(
-            outlet: _selectedOutlet,
           ),
           MoreView(
             outlet: _selectedOutlet,

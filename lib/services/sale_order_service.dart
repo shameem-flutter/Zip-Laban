@@ -1,15 +1,23 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../constants/api_endpoints.dart';
 import '../models/odoo_order.dart';
-import '../models/sale_order_model.dart';
 import '../models/sales_model.dart';
 import 'auth_service.dart';
 
-/// Service for creating and querying POS Sale Orders in Odoo ERP
+/// Preset types for date filtering
+enum DateFilterPreset {
+  today,
+  yesterday,
+  last7Days,
+  thisMonth,
+  custom,
+  all,
+}
+
+/// Service for querying POS Sale Orders in Odoo ERP (Analytics)
 /// Endpoints:
-/// - POST /api/create/sale_order
 /// - GET /api/list/orders
 class SaleOrderService extends ChangeNotifier {
   static final SaleOrderService _instance = SaleOrderService._internal();
@@ -28,10 +36,35 @@ class SaleOrderService extends ChangeNotifier {
   bool _isFromLiveApi = false;
   OutletInfo? _activeOutlet;
 
+  // Date Filter State
+  DateFilterPreset _dateFilterPreset = DateFilterPreset.today;
+  DateTime? _filterStartDate;
+  DateTime? _filterEndDate;
+  String _dateFilterLabel = 'Today';
+
   SaleOrderService._internal() {
-    _populateDefaultOrders();
-    _lastPosSyncedAt = DateTime.now().subtract(const Duration(minutes: 2));
-    _lastOrdersSyncedAt = DateTime.now().subtract(const Duration(hours: 1));
+    _applyPresetDates(DateFilterPreset.today);
+  }
+
+  void clear() {
+    _odooOrders = [];
+    _syncedOrders.clear();
+    _isLoading = false;
+    _errorMessage = null;
+    _lastPosSyncedAt = null;
+    _lastOrdersSyncedAt = null;
+    _isFromLiveApi = false;
+    _activeOutlet = null;
+    _applyPresetDates(DateFilterPreset.today);
+    notifyListeners();
+  }
+
+  @visibleForTesting
+  void setOrdersForTesting(List<OdooOrder> orders) {
+    _odooOrders = List.from(orders);
+    _syncedOrders.clear();
+    _syncedOrders.addAll(_odooOrders.map((o) => o.toMap()));
+    notifyListeners();
   }
 
   bool get isLoading => _isLoading;
@@ -42,6 +75,85 @@ class SaleOrderService extends ChangeNotifier {
   DateTime? get lastPosSyncedAt => _lastPosSyncedAt;
   DateTime? get lastOrdersSyncedAt => _lastOrdersSyncedAt;
   OutletInfo? get activeOutlet => _activeOutlet;
+
+  // Date Filter Getters
+  DateFilterPreset get dateFilterPreset => _dateFilterPreset;
+  DateTime? get filterStartDate => _filterStartDate;
+  DateTime? get filterEndDate => _filterEndDate;
+  String get dateFilterLabel => _dateFilterLabel;
+
+  static String _formatDateShort(DateTime dt) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${dt.day} ${months[dt.month - 1]}';
+  }
+
+  void _applyPresetDates(DateFilterPreset preset, {DateTimeRange? customRange}) {
+    final now = DateTime.now();
+    _dateFilterPreset = preset;
+    switch (preset) {
+      case DateFilterPreset.today:
+        _filterStartDate = DateTime(now.year, now.month, now.day);
+        _filterEndDate = DateTime(now.year, now.month, now.day);
+        _dateFilterLabel = _formatDateShort(now);
+        break;
+      case DateFilterPreset.yesterday:
+        final y = now.subtract(const Duration(days: 1));
+        _filterStartDate = DateTime(y.year, y.month, y.day);
+        _filterEndDate = DateTime(y.year, y.month, y.day);
+        _dateFilterLabel = _formatDateShort(y);
+        break;
+      case DateFilterPreset.last7Days:
+        final s = now.subtract(const Duration(days: 6));
+        _filterStartDate = DateTime(s.year, s.month, s.day);
+        _filterEndDate = DateTime(now.year, now.month, now.day);
+        _dateFilterLabel = 'Last 7 Days';
+        break;
+      case DateFilterPreset.thisMonth:
+        _filterStartDate = DateTime(now.year, now.month, 1);
+        _filterEndDate = DateTime(now.year, now.month + 1, 0);
+        _dateFilterLabel = 'This Month';
+        break;
+      case DateFilterPreset.custom:
+        if (customRange != null) {
+          _filterStartDate = DateTime(
+              customRange.start.year, customRange.start.month, customRange.start.day);
+          _filterEndDate = DateTime(
+              customRange.end.year, customRange.end.month, customRange.end.day);
+          if (_filterStartDate == _filterEndDate) {
+            _dateFilterLabel = _formatDateShort(_filterStartDate!);
+          } else {
+            _dateFilterLabel =
+                '${_formatDateShort(_filterStartDate!)} - ${_formatDateShort(_filterEndDate!)}';
+          }
+        }
+        break;
+      case DateFilterPreset.all:
+        _filterStartDate = null;
+        _filterEndDate = null;
+        _dateFilterLabel = 'All Time';
+        break;
+    }
+  }
+
+  /// Sets active date filter preset and notifies listeners
+  void setDateFilterPreset(DateFilterPreset preset, {DateTimeRange? customRange}) {
+    _applyPresetDates(preset, customRange: customRange);
+    notifyListeners();
+  }
+
+  /// Sets custom date range and notifies listeners
+  void setCustomDateRange(DateTime start, DateTime end) {
+    setDateFilterPreset(DateFilterPreset.custom,
+        customRange: DateTimeRange(start: start, end: end));
+  }
+
+  /// Clears date filter (shows all orders)
+  void clearDateFilter() {
+    setDateFilterPreset(DateFilterPreset.all);
+  }
 
   /// Sets the currently active outlet to filter dashboard metrics and orders
   void setActiveOutlet(OutletInfo? outlet) {
@@ -70,9 +182,28 @@ class SaleOrderService extends ChangeNotifier {
     return false;
   }
 
+  /// Checks whether an order falls within the active date filter range
+  bool matchesDate(OdooOrder order) {
+    if (_filterStartDate == null && _filterEndDate == null) return true;
+    final orderDate = order.parsedDate;
+    if (orderDate == null) return false;
+    if (_filterStartDate != null && orderDate.isBefore(_filterStartDate!)) {
+      return false;
+    }
+    if (_filterEndDate != null && orderDate.isAfter(_filterEndDate!)) {
+      return false;
+    }
+    return true;
+  }
+
+  /// Returns filtered orders for active outlet
+  List<OdooOrder> get filteredOrders => getOrdersForOutlet(_activeOutlet);
+
   /// Returns sorted orders for a given outlet (and optional channel 'Dine In' / 'Pick Up' / 'Delivery')
   List<OdooOrder> getOrdersForOutlet(OutletInfo? outlet, {String? channel}) {
-    var list = _odooOrders.where((o) => matchesOutlet(o, outlet)).toList();
+    var list = _odooOrders
+        .where((o) => matchesOutlet(o, outlet) && matchesDate(o))
+        .toList();
     if (channel != null && channel.isNotEmpty) {
       final ch = channel.toLowerCase();
       if (ch.contains('dine')) {
@@ -316,161 +447,7 @@ class SaleOrderService extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Exact dataset from user's /api/list/orders response
-  static final List<Map<String, dynamic>> defaultOdooOrders = [
-    {
-      "invoice_number": "POS-V2-33",
-      "invoice_date": "2026-10-09",
-      "partner_name": "Default Customer (Kottakkal)",
-      "order_type": "takeaway",
-      "company_id": 2,
-      "company_name": "KOTTAKKAL BRANCH",
-      "amount_untaxed": 402.5,
-      "amount_tax": 0.0,
-      "amount_total": 402.5,
-      "amount_paid": 0.0,
-      "payments": []
-    },
-    {
-      "invoice_number": "999",
-      "invoice_date": "2026-10-08",
-      "partner_name": "Default Customer (Kottakkal)",
-      "order_type": "dine_in",
-      "company_id": 2,
-      "company_name": "KOTTAKKAL BRANCH",
-      "amount_untaxed": 22.0,
-      "amount_tax": 0.0,
-      "amount_total": 22.0,
-      "amount_paid": 0.0,
-      "payments": []
-    },
-    {
-      "invoice_number": "POS-V2-26",
-      "invoice_date": "2026-10-07",
-      "partner_name": "Default Customer (Kadampuzha)",
-      "order_type": "takeaway",
-      "company_id": 3,
-      "company_name": "KADAMPUZHA BRANCH",
-      "amount_untaxed": 402.5,
-      "amount_tax": 0.0,
-      "amount_total": 402.5,
-      "amount_paid": 0.0,
-      "payments": []
-    },
-    {
-      "invoice_number": "POS-V2-25",
-      "invoice_date": "2026-10-07",
-      "partner_name": "Default Customer (Kadampuzha)",
-      "order_type": "takeaway",
-      "company_id": 3,
-      "company_name": "KADAMPUZHA BRANCH",
-      "amount_untaxed": 402.5,
-      "amount_tax": 0.0,
-      "amount_total": 402.5,
-      "amount_paid": 0.0,
-      "payments": []
-    },
-    {
-      "invoice_number": "POS-V2-24",
-      "invoice_date": "2026-10-07",
-      "partner_name": "Default Customer (Kadampuzha)",
-      "order_type": "takeaway",
-      "company_id": 3,
-      "company_name": "KADAMPUZHA BRANCH",
-      "amount_untaxed": 172.5,
-      "amount_tax": 0.0,
-      "amount_total": 172.5,
-      "amount_paid": 0.0,
-      "payments": []
-    },
-    {
-      "invoice_number": "POS-V2-23",
-      "invoice_date": "2026-10-07",
-      "partner_name": "Default Customer (Kadampuzha)",
-      "order_type": "takeaway",
-      "company_id": 3,
-      "company_name": "KADAMPUZHA BRANCH",
-      "amount_untaxed": 920.0,
-      "amount_tax": 0.0,
-      "amount_total": 920.0,
-      "amount_paid": 0.0,
-      "payments": []
-    },
-    {
-      "invoice_number": "POS-V2-22",
-      "invoice_date": "2026-10-07",
-      "partner_name": "Default Customer (Kadampuzha)",
-      "order_type": "takeaway",
-      "company_id": 3,
-      "company_name": "KADAMPUZHA BRANCH",
-      "amount_untaxed": 172.5,
-      "amount_tax": 0.0,
-      "amount_total": 172.5,
-      "amount_paid": 0.0,
-      "payments": []
-    },
-    {
-      "invoice_number": "POS-V2-21",
-      "invoice_date": "2026-10-07",
-      "partner_name": "Default Customer (Kadampuzha)",
-      "order_type": "takeaway",
-      "company_id": 3,
-      "company_name": "KADAMPUZHA BRANCH",
-      "amount_untaxed": 402.5,
-      "amount_tax": 0.0,
-      "amount_total": 402.5,
-      "amount_paid": 0.0,
-      "payments": []
-    },
-    {
-      "invoice_number": "POS-V2-20",
-      "invoice_date": "2026-10-05",
-      "partner_name": "Default Customer (Kadampuzha)",
-      "order_type": "takeaway",
-      "company_id": 3,
-      "company_name": "KADAMPUZHA BRANCH",
-      "amount_untaxed": 132.0,
-      "amount_tax": 0.0,
-      "amount_total": 132.0,
-      "amount_paid": 0.0,
-      "payments": []
-    },
-    {
-      "invoice_number": "POS-V2-19",
-      "invoice_date": "2026-10-03",
-      "partner_name": "Default Customer (Kadampuzha)",
-      "order_type": "takeaway",
-      "company_id": 3,
-      "company_name": "KADAMPUZHA BRANCH",
-      "amount_untaxed": 66.0,
-      "amount_tax": 0.0,
-      "amount_total": 66.0,
-      "amount_paid": 0.0,
-      "payments": []
-    },
-    {
-      "invoice_number": "POS-V2-18",
-      "invoice_date": "2026-10-03",
-      "partner_name": "Default Customer (Kottakkal)",
-      "order_type": "takeaway",
-      "company_id": 2,
-      "company_name": "KOTTAKKAL BRANCH",
-      "amount_untaxed": 172.5,
-      "amount_tax": 0.0,
-      "amount_total": 172.5,
-      "amount_paid": 0.0,
-      "payments": []
-    }
-  ];
 
-  void _populateDefaultOrders() {
-    _odooOrders = defaultOdooOrders
-        .map((j) => OdooOrder.fromJson(j))
-        .toList();
-    _odooOrders.sort(OdooOrder.compareLatestFirst);
-    _syncedOrders.clear();
-    _syncedOrders.addAll(_odooOrders.map((o) => o.toMap()));
-  }
 
   /// Fetches orders from Odoo via GET /api/list/orders
   Future<bool> fetchOrders({bool forceRefresh = false}) async {
@@ -509,7 +486,6 @@ class SaleOrderService extends ChangeNotifier {
           _errorMessage = err is Map
               ? (err['data']?['message'] ?? err['message'])
               : err.toString();
-          if (_odooOrders.isEmpty) _populateDefaultOrders();
           _isLoading = false;
           notifyListeners();
           return false;
@@ -530,28 +506,23 @@ class SaleOrderService extends ChangeNotifier {
           _isLoading = false;
           notifyListeners();
           return true;
+        } else {
+          _errorMessage = 'Invalid response format from orders endpoint';
+          _isLoading = false;
+          notifyListeners();
+          return false;
         }
+      } else {
+        _errorMessage = 'Server error (${response.statusCode})';
+        _isLoading = false;
+        notifyListeners();
+        return false;
       }
-
-      if (_odooOrders.isEmpty) _populateDefaultOrders();
-      _isLoading = false;
-      notifyListeners();
-      return true;
     } catch (e) {
-      if (_odooOrders.isEmpty) _populateDefaultOrders();
+      _errorMessage = 'Network connection error: ${e.toString()}';
       _isLoading = false;
       notifyListeners();
-      return true;
+      return false;
     }
-  }
-
-  /// Disabled: Order creation is not used in this Analytics-only Dashboard
-  Future<CreateSaleOrderResult> createSaleOrder(CreateSaleOrderInput input) async {
-    // Disabled (Analytics Only):
-    // POST /api/create/sale_order is removed
-    return const CreateSaleOrderResult(
-      success: false,
-      message: 'Order creation is disabled. This app is dedicated to analytics and reporting.',
-    );
   }
 }

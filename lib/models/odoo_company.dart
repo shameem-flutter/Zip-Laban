@@ -32,19 +32,12 @@ class OdooCompany {
       short = '${short.substring(0, 17)}...';
     }
 
-    final upper = formattedName.toUpperCase();
-    final location = upper.contains('KOTTAKKAL')
-        ? 'Kottakkal, Malappuram'
-        : (upper.contains('KADAMPUZHA')
-            ? 'Kadampuzha, Kerala'
-            : 'Branch Hub, Kerala');
-
     return OutletInfo(
       id: id.toString(),
       name: formattedName,
       shortName: short,
-      location: location,
-      posTerminalId: 'POS-0$id',
+      location: '',
+      posTerminalId: '',
       isOnline: true,
     );
   }
