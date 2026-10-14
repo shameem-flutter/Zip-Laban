@@ -3,7 +3,7 @@ class ApiEndpoints {
   ApiEndpoints._();
 
   /// Primary Server Domain & Base URL
-  static const String baseDomain = 'ziplaban.odoo.waslasoft.com';
+  static const String baseDomain = 'ziplaban.waslasoft.com';
   static const String baseUrl = 'https://$baseDomain';
 
   /// Authentication & Session
@@ -18,4 +18,3 @@ class ApiEndpoints {
   /// GET /api/list/orders
   static const String listOrders = '$baseUrl/api/list/orders';
 }
-

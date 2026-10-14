@@ -183,11 +183,11 @@ void main() {
   });
 
   test('ApiEndpoints configuration verification', () {
-    expect(ApiEndpoints.baseDomain, 'ziplaban.odoo.waslasoft.com');
-    expect(ApiEndpoints.baseUrl, 'https://ziplaban.odoo.waslasoft.com');
-    expect(ApiEndpoints.authenticate, 'https://ziplaban.odoo.waslasoft.com/web/session/authenticate');
-    expect(ApiEndpoints.getCompanyData, 'https://ziplaban.odoo.waslasoft.com/api/get_company_data');
-    expect(ApiEndpoints.listOrders, 'https://ziplaban.odoo.waslasoft.com/api/list/orders');
+    expect(ApiEndpoints.baseDomain, 'ziplaban.waslasoft.com');
+    expect(ApiEndpoints.baseUrl, 'https://ziplaban.waslasoft.com');
+    expect(ApiEndpoints.authenticate, 'https://ziplaban.waslasoft.com/web/session/authenticate');
+    expect(ApiEndpoints.getCompanyData, 'https://ziplaban.waslasoft.com/api/get_company_data');
+    expect(ApiEndpoints.listOrders, 'https://ziplaban.waslasoft.com/api/list/orders');
   });
 
   test('SaleOrderService dynamic sales and channel calculations', () {
