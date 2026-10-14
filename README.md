@@ -1,8 +1,9 @@
-# Sip Laban - Sales & Operations Management PWA 🥛
+# ZipLaban PWA Application
+ 
 
 A pixel-perfect Flutter Progressive Web App (PWA) replicating the modern restaurant point-of-sale overview dashboard, connected with Odoo ERP.
 
-## 📱 Features
+## 🧰 Git User Manual
 
 - **Exact Visual Match**:
   - **Top App Bar**: Outlet branch selector (`Sip Laban Varang...`), sign out / shift handover button, POS screen shortcut, and digital menu link copy button.
@@ -29,150 +30,163 @@ A pixel-perfect Flutter Progressive Web App (PWA) replicating the modern restaur
 
 Prerequisites: Flutter SDK `^3.10.4` or later.
 
+#### 🔄 Default Branch
 ```bash
-# 1. Fetch dependencies
-flutter pub get
-
-# 2. Run locally in Chrome
-flutter run -d chrome
-
-# 3. Build standalone production web assets
-flutter build web --release
+    git checkout Development
 ```
 
 ---
 
-## 🐳 Docker Deployment Guide
+## 🧪 Branching Strategy
 
-The application includes a production-grade multi-stage `Dockerfile` and `compose.yaml` utilizing a lightweight `nginx:1.27-alpine` runtime.
+We follow a structured branching model with the following types:
 
-### Local / Workstation Workflow
+- [x] **Development** – Default working branch  
+- [x] **feature/** – For adding new features  
+- [x] **bugfix/** – For fixing identified bugs  
+- [x] **release/** – For releasing stable builds  
 
-These commands are executed on your local machine or build server where Docker is installed:
+![Branch Workflow](https://raw.githubusercontent.com/git-guides/git-flow/main/images/git-flow-branches.png)
 
-#### 1. Build the Docker Image
+---
+
+## ✨ Adding a New Feature
 ```bash
-docker build -t sip-laban-pwa:latest .
+    # Step 1: Checkout the default branch
+        git checkout Development
+        git pull
+
+    # Step 2: Create a new feature branch
+        git checkout -b feature/short-feature-name
+
+    # Step 3: Write your code and commit
+        git add -A
+        git commit -m "Added: short description"
+
+    # Step 4: Push and create Merge Request
+        git push origin feature/short-feature-name
 ```
 
-#### 2. Run the Container
+➡ Go to **GitLab ➝ Merge Requests ➝ New Merge Request**  
+➡ Choose your source branch (`feature/short-feature-name`) and target branch (`Development`)  
+➡ Fill in the title and description
+
+**Then:**
+- 🧑‍💼 **Select a Reviewer** from the dropdown list (person who will review your code)
+- 🙋 **Assign Yourself** in the **Assignee** dropdown
+
+➡ Click **Submit Merge Request**
+
+➡ Wait for **Maintainer approval and merge**
+
 ```bash
-docker run --rm -d -p 8080:80 --name sip-laban-pwa sip-laban-pwa:latest
-```
-
-#### 3. Open the Application
-Navigate in your web browser to:
-```text
-http://localhost:8080
-```
-
-#### 4. Run Using Docker Compose (Recommended)
-```bash
-# Build and start container in detached mode
-docker compose up -d --build
-
-# Inspect running container status & healthcheck
-docker compose ps
-
-# View live application access & error logs
-docker compose logs -f
-
-# Stop and remove container
-docker compose down
+    # Step 5: After merge, update local Development branch
+        git checkout Development
+        git pull
 ```
 
 ---
 
-## 🌐 Deploying to a Linux Production Server
-
-Follow these steps to deploy the application on a Linux server (Ubuntu/Debian):
-
-### 1. Transfer Code to the Server
+## 🐞 Fixing a Bug
 ```bash
-# Clone the repository onto the production server
-git clone <your-git-repo-url> /opt/laban_pwa
-cd /opt/laban_pwa
+    # Step 1: Checkout the default branch
+        git checkout Development
+        git pull
+    
+    # Step 2: Create a new bugfix branch
+        git checkout -b bugfix/short-bug-name
+    
+    # fix the issue...
+
+    # Step 3: Write your code and commit
+        git add -A
+        git commit -m "Fix: short description of bug fix"
+        
+    # Step 4: Push and create Merge Request
+        git push origin bugfix/short-bug-name
 ```
 
-### 2. Configure Firewall
-Allow ingress traffic on port `8080` (or `80`/`443` if terminating directly):
+➡ Go to **GitLab ➝ Merge Requests ➝ New Merge Request**  
+➡ Choose your source branch (`bugfix/short-bug-name`) and target branch (`Development`)  
+➡ Fill in the title and description
+
+**Then:**
+- 🧑‍💼 **Select a Reviewer** from the dropdown list (person who will review your code)
+- 🙋 **Assign Yourself** in the **Assignee** dropdown
+
+➡ Click **Submit Merge Request**
+
+➡ Wait for **Maintainer approval and merge**
+
 ```bash
-# UFW (Ubuntu)
-sudo ufw allow 8080/tcp
-sudo ufw reload
-```
-
-### 3. Launch via Docker Compose
-```bash
-# On the remote server
-docker compose up -d --build
-```
-
-### 4. Configure HTTPS Reverse Proxy (Host Nginx Example)
-For production deployments, place the container behind an SSL-terminating reverse proxy (Certbot / Let's Encrypt):
-
-```nginx
-# /etc/nginx/sites-available/pos.yourdomain.com
-server {
-    listen 80;
-    server_name pos.yourdomain.com;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name pos.yourdomain.com;
-
-    ssl_certificate /etc/letsencrypt/live/pos.yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/pos.yourdomain.com/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-Enable the configuration and reload Nginx:
-```bash
-sudo ln -s /etc/nginx/sites-available/pos.yourdomain.com /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
+    # Step 5: After merge, update local Development branch
+        git checkout Development
+        git pull
 ```
 
 ---
 
-## 🔗 External Odoo ERP Connectivity & CORS
+## 🚢 Creating a Release
+#### Only maintainer have permissions to go with this step
+```bash
+    # Step 1: Checkout the default branch
+        git checkout Development
+        git pull
+    
+    # Step 2: Create a new release branch
+        git checkout -b release/1.0.0
+        
+        # ensure no pending bugs
+        
+    # Step 3: If no bugs in your code then commit
+        git add -A
+        git commit -m "Release: version 1.0.0"
 
-The PWA client communicates directly with the external Odoo ERP server at:
-`https://ziplaban.odoo.waslasoft.com`
+    # Step 4: Push and create Merge Request
+        git push origin release/1.0.0
+```
 
-### Important CORS Requirements:
-- The frontend initiates HTTPS calls directly from the user's web browser to the external Odoo instance.
-- If your frontend is hosted under a domain other than the Odoo server (e.g., `https://pos.yourdomain.com`), the Odoo server (or the Nginx reverse proxy fronting Odoo) must include the following CORS response headers:
-  ```nginx
-  add_header 'Access-Control-Allow-Origin' 'https://pos.yourdomain.com' always;
-  add_header 'Access-Control-Allow-Credentials' 'true' always;
-  add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
-  add_header 'Access-Control-Allow-Headers' 'Content-Type, Cookie, Authorization' always;
-  ```
-- Nginx serving the frontend container **does not proxy API requests to Odoo**; browser requests travel directly to the external Odoo endpoint. Browser security and CORS must be configured properly on the Odoo domain.
 
 ---
 
-## 🛠️ Project Structure
+## 🔁 Merge Request Flow
 
-- `Dockerfile` - Multi-stage build (Flutter SDK build stage + Nginx Alpine runtime stage)
-- `nginx.conf` - Production Nginx web server configuration with SPA routing and cache headers
-- `.dockerignore` - Docker build context filtering
-- `compose.yaml` - Docker Compose configuration with health check
-- `lib/main.dart` - Application entry point, responsive shell, and tab controller
-- `lib/theme/` - Color tokens (`app_colors.dart`) and typography (`app_theme.dart`)
-- `lib/constants/api_endpoints.dart` - Odoo ERP server endpoints and paths
-- `lib/models/` - Data models (orders, products, customers, staff, companies)
-- `lib/services/` - Services (auth, sale orders, catalog, CRM, staff, PWA installation)
-- `lib/views/` - Main screens (sales, operations, catalog, CRM, settings, login)
-- `lib/widgets/` - Reusable components (charts, modals, nav bar, device frame)
-- `web/manifest.json` - PWA manifest configuration for standalone install
+| Action | Who |
+|--------|-----|
+| Create MR | Developer |
+| Review + Approve | Maintainer |
+| Merge | Maintainer |
+| Pull latest changes | Developer (post-merge) |
+
+✅ Developers cannot push directly to protected branches (`Development`, `Production`, etc.)  
+✅ Only Maintainers can approve and merge MRs.
+
+---
+
+
+## 📌 Best Practices
+
+- Always pull the latest `Development` before creating new branches
+- Keep commit messages meaningful and concise
+- Use Merge Requests for **all changes**
+- Do **not force push** to protected branches
+
+## ⚠️ Important
+
+**One Branch = One Task**
+
+- Do **not** work on multiple tasks in the same branch.
+- Every feature, bug fix, or improvement must have its **own dedicated branch**.
+- Complete **one task → Create Merge Request → Get it reviewed & merged → Pull the latest `Development` → Create a new branch for the next task**.
+- Keeping each branch focused makes Merge Requests meaningful, simplifies code reviews, testing, and future maintenance.
+
+
+---
+
+
+### 🙌 Final Note
+
+> **"Every line of code you write shapes the future of this project. Let's build with purpose, review with care, and grow together as a team of excellence. Your contribution matters — not just to the repo, but to the mission behind it."**
+
+**Happy coding, and keep making magic with your commits!**  
+— Maintained with care by **The Febno Technologies Team** <img src="https://www.api.febno.com/uploads/logo_1_09eb3f551f.webp" alt="Febno Technologies" width="22" valign="middle">
