@@ -93,15 +93,7 @@ class CompanyService extends ChangeNotifier {
       final response = await ApiClient.client
           .post(
             Uri.parse(endpoint),
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'X-Odoo-Database': db,
-              if (sessId != null && sessId.isNotEmpty) ...{
-                'X-Openerp-Session-Id': sessId,
-                'Cookie': 'session_id=$sessId',
-              },
-            },
+            headers: ApiClient.buildHeaders(db: db, sessionId: sessId),
             body: jsonEncode(payload),
           )
           .timeout(const Duration(seconds: 10));

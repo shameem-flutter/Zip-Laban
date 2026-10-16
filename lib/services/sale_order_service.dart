@@ -514,15 +514,7 @@ class SaleOrderService extends ChangeNotifier {
     final sessId = AuthService().currentUser?.sessionId;
 
     try {
-      final headers = <String, String>{
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-Odoo-Database': db,
-        if (sessId != null && sessId.isNotEmpty) ...{
-          'X-Openerp-Session-Id': sessId,
-          'Cookie': 'session_id=$sessId',
-        },
-      };
+      final headers = ApiClient.buildHeaders(db: db, sessionId: sessId);
 
       final response = await ApiClient.client
           .get(

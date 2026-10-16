@@ -207,11 +207,7 @@ class AuthService extends ChangeNotifier {
       final response = await ApiClient.client
           .post(
             Uri.parse(endpoint),
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'X-Odoo-Database': trimmedDb,
-            },
+            headers: ApiClient.buildHeaders(db: trimmedDb),
             body: jsonEncode(payload),
           )
           .timeout(const Duration(seconds: 10));
